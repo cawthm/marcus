@@ -220,7 +220,7 @@ format_quote <- function(quote_row) {
            " --", capitalize_title(gsub("_", " ", quote_row$author[[1]])))
 }
 #format_quote(1)
-#send_quote('+19175191218', format_quote(1))
+#send_quote('+19175551234', format_quote(1))
 
 
 #######################################################
