@@ -1,0 +1,8 @@
+# Ignore everything
+*
+
+# But not these files...
+!.gitignore
+!twilio_verbs.R
+!daily_drinking_bet_maintenance.R
+
