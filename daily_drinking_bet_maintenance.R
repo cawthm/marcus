@@ -35,18 +35,17 @@ if (wday(Sys.Date()) %in% c(6,7,1)) {
     player_db[drink_balance >= 6, foregone_drinks := foregone_drinks + 1]
     player_db[, drink_balance := pmin(drink_balance + 1, 6)]
     
-    # Check for mulligan awards based on foregone_drinks
-    player_db[, new_mulligans := floor(foregone_drinks / 3) - floor((foregone_drinks - 1) / 3)]
+       # Check for mulligan awards based on foregone_drinks
+    player_db[foregone_drinks %% 3 == 0 & foregone_drinks > 0, new_mulligans := foregone_drinks / 3]
     player_db[new_mulligans > 0, `:=`(
         mulligan_balance = mulligan_balance + new_mulligans
-        # Remove the line that was resetting foregone_drinks
     )]
     
     # Notify players who received new mulligans
-    player_db[new_mulligans > 0, {
-        msg <- sprintf("Congratulations! You've been awarded %d new mulligan(s). Total foregone drinks: %d", new_mulligans, foregone_drinks)
-        send_text(phone, msg)
-    }, by = .(phone, initials)]
+    #player_db[new_mulligans > 0, {
+    #    msg <- sprintf("Congratulations! You've been awarded %d new mulligan(s). Total foregone drinks: %d", new_mulligans, foregone_drinks)
+    #    send_text(phone, msg)
+    #}, by = .(phone, initials)]
     
     player_db[, new_mulligans := NULL]
 }

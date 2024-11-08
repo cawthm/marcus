@@ -46,6 +46,7 @@ MENU_verb <- function(df) {
                   "MULLIGAN","\n","(when you wish to log a mulligan)","\n","\n",
                   "STATS","\n","(to see everyone's current standings / bet terms)","\n","\n",
                   "HAIKU","\n","(to see a haiku interpretation of today's quote)","\n","\n",
+                  "BUY n","\n","(to buy n drinks, which costs $20 per drink, $10 to each bet mate)","\n","\n",
                   "UNSUBSCRIBE","\n","(does nothing: there's no way out)")
 
     ## send it
@@ -145,18 +146,19 @@ HOGS_verb <- function(df) {
     player_db[, drink_balance := pmin(drink_balance + 1, 6)]
     
     # Check for mulligan awards based on foregone_drinks
-    player_db[, new_mulligans := floor(foregone_drinks / 3) - floor((foregone_drinks - 1) / 3)]
+    player_db[foregone_drinks %% 3 == 0 & foregone_drinks > 0, new_mulligans := floor(foregone_drinks / 3) - floor((foregone_drinks - 1) / 3)]
     player_db[new_mulligans > 0, `:=`(
         mulligan_balance = mulligan_balance + new_mulligans
         # Remove the line that was resetting foregone_drinks
     )]
     
     # Notify players who received new mulligans
-    player_db[new_mulligans > 0, {
-        msg <- sprintf("Congratulations! You've been awarded %d new mulligan(s). Total foregone drinks: %d", new_mulligans, foregone_drinks)
-        send_text(phone, msg)
-    }, by = .(phone, initials)]
-    
+    #player_db[new_mulligans > 0, {
+    #    msg <- sprintf("Congratulations! You've been awarded %d new mulligan(s). Total foregone drinks: %d", new_mulligans, foregone_drinks)
+    #    send_text(phone, msg)
+
+    #}, by = .(phone, initials)]
+
     player_db[, new_mulligans := NULL]
 
     # Save the updated player_db
@@ -167,7 +169,32 @@ HOGS_verb <- function(df) {
     purrr::map(player_db$phone, send_text, msg)
 }
 
-
+BUY_verb <- function(df) {
+    df <- as.data.table(df)
+    df[, count := as.integer(count)]
+    
+    player_db <- data.table::fread("player_db.csv", colClasses = list(character = "phone"))
+    player_db[, phone := ifelse(grepl("^\\+", phone), phone, paste0("+", phone))]
+    
+    # Increment drinks_consumed only for sender
+    player_db[phone == df$from, `:=`(
+       drinks_consumed = drinks_consumed + df$count
+    )]
+    
+    fwrite(player_db, "player_db.csv")
+    
+    # Calculate amount owed
+    amount_owed <- df$count * 10
+    
+    # Let other players know they're owed money
+    msg_others <- paste0(player_db[phone == df$from,]$initials, " just bought ", df$count, 
+                   " drink(s). He owes you $", amount_owed, ".")
+    purrr::map(player_db[phone != df$from,]$phone, send_text, msg_others)
+    
+    # Send confirmation to buyer (different message)
+    msg_buyer <- paste0("You bought ", df$count, " drink(s), logged to your drinks consumed.")
+    send_text(df$from, msg_buyer)
+}
 
 
 
@@ -255,7 +282,8 @@ capitalize_title <- function(title) {
 function_map <- list(
         "STATS" = STATS_verb,
         "MENU" = MENU_verb,
-        "DRINK" = DRINK_verb,
+        "DRINK" = DRINK_verb,   
+        "BUY" = BUY_verb,
         "MULLIGAN" = MULLIGAN_verb,
         "HAIKU" = HAIKU_verb,
         "HOGS" = HOGS_verb
@@ -276,7 +304,7 @@ dispatch_function <- function(df, ...) {
 
 parser <- function(string) {
     # Updated regex pattern to include HOGS
-    pattern <- "(?i)\\b(STATS|MENU|DRINKS?|MULLIGAN|HAIKU|HOGS)\\b(?:\\s+(\\d+))?"
+    pattern <- "(?i)\\b(STATS|MENU|DRINKS?|MULLIGAN|HAIKU|HOGS|BUY)\\b(?:\\s+(\\d+))?"
 
     # Apply the regex pattern
     matches <- regmatches(string, gregexpr(pattern, string, perl = TRUE))
