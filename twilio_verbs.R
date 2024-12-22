@@ -146,7 +146,7 @@ HOGS_verb <- function(df) {
     player_db[, drink_balance := pmin(drink_balance + 1, 6)]
     
     # Check for mulligan awards based on foregone_drinks
-    player_db[foregone_drinks %% 3 == 0 & foregone_drinks > 0, new_mulligans := floor(foregone_drinks / 3) - floor((foregone_drinks - 1) / 3)]
+    player_db[foregone_drinks %% 3 == 0 & foregone_drinks > 0 & drink_balance >= 6, new_mulligans := 1]
     player_db[new_mulligans > 0, `:=`(
         mulligan_balance = mulligan_balance + new_mulligans
         # Remove the line that was resetting foregone_drinks

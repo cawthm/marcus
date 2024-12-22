@@ -36,7 +36,7 @@ if (wday(Sys.Date()) %in% c(6,7,1)) {
     player_db[, drink_balance := pmin(drink_balance + 1, 6)]
     
        # Check for mulligan awards based on foregone_drinks
-    player_db[foregone_drinks %% 3 == 0 & foregone_drinks > 0, new_mulligans := 1]
+    player_db[foregone_drinks %% 3 == 0 & foregone_drinks > 0 & drink_balance >= 6, new_mulligans := 1]
     player_db[new_mulligans > 0, `:=`(
         mulligan_balance = mulligan_balance + new_mulligans
     )]
