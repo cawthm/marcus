@@ -61,8 +61,8 @@ get_sec_change <- function() {
   df <- suncalc::getSunlightTimes(date = Sys.Date() + lubridate::days(-1:0),
                                   lat = 36.064983,
                                   lon = -94.149184, tz = "America/Chicago") |>
-    mutate(daylight_length_secs = difftime(sunset, sunrise, units = "secs"),
-           change_in_secs = daylight_length_secs - lag(daylight_length_secs))
+    dplyr::mutate(daylight_length_secs = difftime(sunset, sunrise, units = "secs"),
+           change_in_secs = daylight_length_secs - dplyr::lag(daylight_length_secs))
 
  n <- df$change_in_secs[[2]]
  
