@@ -2,6 +2,7 @@ library(data.table)
 library(httr2)
 library(lubridate)
 library(purrr)
+library(suncalc)
 source("twilio_verbs.R")
 
 
@@ -54,8 +55,23 @@ if (wday(Sys.Date()) %in% c(6,7,1)) {
 readr::write_csv(player_db, "player_db.csv")
 readr::write_rds(quotes, "stoic_quotes.rds")
 
+# Figure out how many secs the day is changing
+
+get_sec_change <- function() {
+  df <- suncalc::getSunlightTimes(date = Sys.Date() + lubridate::days(-1:0),
+                                  lat = 36.064983,
+                                  lon = -94.149184, tz = "America/Chicago") |>
+    mutate(daylight_length_secs = difftime(sunset, sunrise, units = "secs"),
+           change_in_secs = daylight_length_secs - lag(daylight_length_secs))
+
+ n <- df$change_in_secs[[2]]
+ 
+ paste0(ifelse(n >= 0, "+", ""), n, " secs daylight ", "\u25B3")
+ 
+}
+
 # Format and send the daily message
-daily_msg <- paste0(format_quote(quotes[my_sampled_row, ]), "\n\n", "Reply MENU for actions.")
+daily_msg <- paste0(format_quote(quotes[my_sampled_row, ]), "\n\n", "Reply MENU for actions.", "\n\n", get_sec_change())
 
 # Send the message only to the specific player(s) with initials "MC"
 #map(player_db[initials == "MC",]$phone, .f = send_text, daily_msg)
