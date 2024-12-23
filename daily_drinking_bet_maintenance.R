@@ -18,6 +18,8 @@ player_db <- fread("player_db.csv", colClasses = list(character = "phone"), enco
 
 if (player_db$date_start[[1]] == Sys.Date()) {
     my_sampled_row <- 140
+} else if (Sys.Date() %in% as.Date(c("2024-12-25", "2025-12-25", "2026-12-25", "2027-12-25", "2028-12-25"))) {
+    my_sampled_row <- 170
 } else {
     my_sampled_row <- sample(seq_len(nrow(quotes)), size = 1, prob = quotes$prop)
 }
