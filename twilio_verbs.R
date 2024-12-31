@@ -141,25 +141,27 @@ HOGS_verb <- function(df) {
     player_db <- data.table::fread("player_db.csv", colClasses = list(character = "phone"))
     player_db[, phone := ifelse(grepl("^\\+", phone), phone, paste0("+", phone))]
 
-    # Increment drink_balance and handle foregone_drinks
-    player_db[drink_balance >= 6, foregone_drinks := foregone_drinks + 1]
+    # First, identify who will get a foregone drink
+    player_db[, will_get_foregone := drink_balance >= 6]
+    
+    # Check for mulligan awards BEFORE incrementing foregone_drinks
+    # This way we only award when crossing the threshold
+    old_foregone <- player_db$foregone_drinks
+    new_foregone <- old_foregone + player_db$will_get_foregone
+    player_db[, new_mulligans := floor(new_foregone/3) - floor(old_foregone/3)]
+    
+    # Update mulligans where awarded
+    player_db[new_mulligans > 0, mulligan_balance := mulligan_balance + new_mulligans]
+    
+    # Now handle drink balance and foregone drinks
+    player_db[will_get_foregone == TRUE, foregone_drinks := foregone_drinks + 1]
     player_db[, drink_balance := pmin(drink_balance + 1, 6)]
     
-    # Check for mulligan awards based on foregone_drinks
-    player_db[foregone_drinks %% 3 == 0 & foregone_drinks > 0 & drink_balance >= 6, new_mulligans := 1]
-    player_db[new_mulligans > 0, `:=`(
-        mulligan_balance = mulligan_balance + new_mulligans
-        # Remove the line that was resetting foregone_drinks
+    # Cleanup
+    player_db[, `:=`(
+        will_get_foregone = NULL,
+        new_mulligans = NULL
     )]
-    
-    # Notify players who received new mulligans
-    #player_db[new_mulligans > 0, {
-    #    msg <- sprintf("Congratulations! You've been awarded %d new mulligan(s). Total foregone drinks: %d", new_mulligans, foregone_drinks)
-    #    send_text(phone, msg)
-
-    #}, by = .(phone, initials)]
-
-    player_db[, new_mulligans := NULL]
 
     # Save the updated player_db
     fwrite(player_db, "player_db.csv")
