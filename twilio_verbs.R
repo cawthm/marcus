@@ -21,10 +21,14 @@ STATS_verb <- function(df) {
     # Calculate net difference (drinks - health) for each player
     player_db[, net := drinks - health]
 
-    # Calculate days remaining (assuming 90-day bet)
+    # Calculate days remaining (100-day bet)
     start_date <- as.Date(player_db$start_date[[1]])
-    days_elapsed <- as.integer(difftime(Sys.Date(), start_date, units = "days"))
-    days_remaining <- 90 - days_elapsed
+    days_until_start <- as.integer(difftime(start_date, Sys.Date(), units = "days"))
+    days_remaining <- if (days_until_start > 0) {
+        100  # Bet hasn't started yet
+    } else {
+        max(0, 100 + days_until_start)  # days_until_start is negative here
+    }
 
     msg <- paste("STATS","\n","\n",
           "Days remaining: ", days_remaining, "\n", "\n",
