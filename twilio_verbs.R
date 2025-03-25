@@ -269,11 +269,7 @@ function_map <- list(
     "HEALTH" = HEALTH_verb,
     "MENU" = MENU_verb,
     "STATS" = STATS_verb,
-    "QUOTE" = QUOTE_verb,
-    "MULLIGAN" = MULLIGAN_verb,
-    "HAIKU" = HAIKU_verb,
-    "HOGS" = HOGS_verb,
-    "BUY" = BUY_verb
+    "QUOTE" = QUOTE_verb
 )
 
 #######################################################
@@ -290,8 +286,8 @@ dispatch_function <- function(df, ...) {
 #######################################################
 
 parser <- function(string) {
-    # Updated regex pattern to include HOGS
-    pattern <- "(?i)\\b(STATS|MENU|DRINKS?|MULLIGAN|HAIKU|HOGS|BUY)\\b(?:\\s+(\\d+))?"
+    # Updated regex pattern to only include our new verbs
+    pattern <- "(?i)\\b(STATS|MENU|DRINKS?|HEALTH|QUOTE)\\b(?:\\s+(\\d+(?:\\.\\d+)?)?)?"
 
     # Apply the regex pattern
     matches <- regmatches(string, gregexpr(pattern, string, perl = TRUE))
