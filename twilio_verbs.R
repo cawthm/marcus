@@ -18,38 +18,31 @@ STATS_verb <- function(df) {
     ##load data
     player_db <- data.table::fread("player_db.csv", colClasses = list(character = "phone"))
 
-    bet_days <- difftime(Sys.Date(), as.Date(player_db$date_start[[1]]))
-    drink_bal <- player_db[,c("initials", "drink_balance")]
-    drinks_consumed <- player_db[,c("initials", "drinks_consumed")]
-    mul_balance <- player_db[,c("initials", "mulligan_balance")]
-    foregone_drinks <- player_db[,c("initials", "foregone_drinks")]
-    current_stakes <- min(player_db$start_stakes[[1]], player_db$start_stakes[[1]] - bet_days * player_db$bet_decrement[[1]])
-    current_stakes <- max(player_db$bet_min, current_stakes)
-    ##
+    # Calculate net difference (drinks - health) for each player
+    player_db[, net := drinks - health]
+
+    # Calculate days remaining (assuming 90-day bet)
+    start_date <- as.Date(player_db$start_date[[1]])
+    days_elapsed <- as.integer(difftime(Sys.Date(), start_date, units = "days"))
+    days_remaining <- 90 - days_elapsed
 
     msg <- paste("STATS","\n","\n",
-          "Bet duration","\n", as.integer(bet_days)," days","\n","\n",
-          "Drink balance","\n",format_dataframe_to_string(drink_bal),"\n","\n",
-          "Drinks consumed","\n",format_dataframe_to_string(drinks_consumed),"\n","\n",
-          "Remaining mulligans","\n",format_dataframe_to_string(mul_balance),"\n","\n",
-          "Foregone drinks","\n",format_dataframe_to_string(foregone_drinks),"\n","\n",
-          "Bet balance","\n",scales::dollar_format(accuracy = 1)(current_stakes))
+          "Days remaining: ", days_remaining, "\n", "\n",
+          "Drinks","\n", format_dataframe_to_string(player_db[,c("initials", "drinks")]),"\n","\n",
+          "Health","\n", format_dataframe_to_string(player_db[,c("initials", "health")]),"\n","\n",
+          "Net","\n", format_dataframe_to_string(player_db[,c("initials", "net")]))
    send_text(df$from, msg)
 }
 
 #STATS_verb(log_entry2)
 
 MENU_verb <- function(df) {
-    ## say something useful
-    msg <- paste0("Valid replies:","\n","MENU (show the menu verbs)","\n","\n",
-                  "DRINK n","\n","(to log drink(s), where n is the number of drinks you've had. Can be done any number of times, but each text is additive, eg texting DRINK 1, followed by DRINKS 3 a few minutes later will debit you 4 total drinks)","\n","\n",
-                  "MULLIGAN","\n","(when you wish to log a mulligan)","\n","\n",
-                  "STATS","\n","(to see everyone's current standings / bet terms)","\n","\n",
-                  "HAIKU","\n","(to see a haiku interpretation of today's quote)","\n","\n",
-                  "BUY n","\n","(to buy n drinks, which costs $20 per drink, $10 to each bet mate)","\n","\n",
-                  "UNSUBSCRIBE","\n","(does nothing: there's no way out)")
+    msg <- paste0("Valid replies:","\n","\n",
+                  "DRINK n or DRINKS n","\n","(to log drink(s), where n is the number of drinks)","\n","\n",
+                  "HEALTH n","\n","(to log health activity, where n is the number of units)","\n","\n",
+                  "STATS","\n","(to see everyone's current standings)","\n","\n",
+                  "QUOTE","\n","(to see today's quote)")
 
-    ## send it
     send_text(df$from, msg)
 }
 
@@ -57,72 +50,61 @@ MENU_verb <- function(df) {
 
 DRINK_verb <- function(df) {
     df <- as.data.table(df)
-    df[, count := as.integer(count)]
-    #df[, from = as.character(from)]
+    df[, count := as.numeric(count)]
 
     player_db <- data.table::fread("player_db.csv", colClasses = list(character = "phone"))
     player_db[, phone := ifelse(grepl("^\\+", phone), phone, paste0("+", phone))]
-    #work <- data.table::copy(player_db)
-    ## decrement drinks db
+    
+    ## increment drinks count
     player_db[phone == df$from, `:=`(
-       drink_balance = drink_balance - df$count,
-       drinks_consumed = drinks_consumed + df$count
+       drinks = drinks + df$count
     )]
 
-    str_output <- capture.output(str(player_db))
-    log_message <- paste(Sys.time(), "Error:", paste(str_output, collapse = "\n"))
-    writeLines(log_message, con = "drink_verb_log.txt")
-
-    str_output <- capture.output(str(df))
-    log_message <- paste(Sys.time(), "Error:", paste(str_output, collapse = "\n"))
-    writeLines(log_message, con = "drink_verb2_log.txt")
-
-    #fwrite(player_db[phone == df$from], "player_db_DELETE.csv")
-    # #
-    bet_days <- difftime(Sys.Date(), as.Date("2024-07-01"))
-    current_stakes <- min(player_db$start_stakes, player_db$start_stakes - bet_days * player_db$bet_decrement)
-    current_stakes <- max(player_db$bet_min, current_stakes)
-    # save our work
-
-
-    if (player_db[phone == df$from,]$drink_balance < 0 ) {
-
-        msg <- paste0("You have lost the bet and owe ", scales::dollar_format()(current_stakes))
-        send_text(df$from, msg)
-    } else {
-        fwrite(player_db, "player_db.csv")
-        # send stats
-        STATS_verb(df)
-        # let_other_players_know
-        msg2 <- paste0(player_db[phone == df$from,]$initial, " just logged ", df$count, " drink(s).")
-        purrr::map(player_db[phone != df$from,]$phone, send_text, msg2)
-    }
+    # Save the updated database
+    fwrite(player_db, "player_db.csv")
+    
+    # Send confirmation
+    msg <- paste0(player_db[phone == df$from,]$initials, " logged ", df$count, " drink(s).")
+    send_text(df$from, msg)
+    
+    # Let other players know
+    msg2 <- paste0(player_db[phone == df$from,]$initials, " just logged ", df$count, " drink(s).")
+    purrr::map(player_db[phone != df$from,]$phone, send_text, msg2)
 }
 
 #DRINK_verb(log_entry2)
 
-MULLIGAN_verb <- function(df) {
+HEALTH_verb <- function(df) {
     df <- as.data.table(df)
+    df[, count := as.numeric(count)]
+
     player_db <- data.table::fread("player_db.csv", colClasses = list(character = "phone"))
     player_db[, phone := ifelse(grepl("^\\+", phone), phone, paste0("+", phone))]
-        ## decrement drinks db
+    
+    ## increment health count
     player_db[phone == df$from, `:=`(
-        mulligan_balance = mulligan_balance - 1,
-        mulligans_taken = mulligans_taken + 1
+       health = health + df$count
     )]
 
-    # save our work
+    # Save the updated database
+    fwrite(player_db, "player_db.csv")
+    
+    # Send confirmation
+    msg <- paste0(player_db[phone == df$from,]$initials, " logged ", df$count, " health unit(s).")
+    send_text(df$from, msg)
+    
+    # Let other players know
+    msg2 <- paste0(player_db[phone == df$from,]$initials, " just logged ", df$count, " health unit(s).")
+    purrr::map(player_db[phone != df$from,]$phone, send_text, msg2)
+}
 
-    if (player_db[phone == df$from,]$mulligan_balance < 0 ) {
-        msg <- paste0("You have no more mullis to use.  Negotiate with your bet mates or concede.")
-        send_text(df$from, msg)
-    } else {
-        fwrite(player_db, "player_db.csv")
-        # let_other_players_know
-        msg2 <- paste0(player_db[phone == df$from,]$initial, " just took a mulligan.")
-        purrr::map(player_db[phone != df$from,]$phone, send_text, msg2)
-
-    }
+QUOTE_verb <- function(df) {
+    player_db <- data.table::fread("player_db.csv", colClasses = list(character = "phone"))
+    quotes <- fread("stoic_quotes.csv")
+    
+    # Get today's quote
+    current_quote <- quotes[player_db$sampled_row[[1]],]
+    send_text(df$from, format_quote(current_quote))
 }
 
 HAIKU_verb <- function(df) {
@@ -282,14 +264,17 @@ capitalize_title <- function(title) {
 
 
 function_map <- list(
-        "STATS" = STATS_verb,
-        "MENU" = MENU_verb,
-        "DRINK" = DRINK_verb,   
-        "BUY" = BUY_verb,
-        "MULLIGAN" = MULLIGAN_verb,
-        "HAIKU" = HAIKU_verb,
-        "HOGS" = HOGS_verb
-    )
+    "DRINK" = DRINK_verb,
+    "DRINKS" = DRINK_verb,
+    "HEALTH" = HEALTH_verb,
+    "MENU" = MENU_verb,
+    "STATS" = STATS_verb,
+    "QUOTE" = QUOTE_verb,
+    "MULLIGAN" = MULLIGAN_verb,
+    "HAIKU" = HAIKU_verb,
+    "HOGS" = HOGS_verb,
+    "BUY" = BUY_verb
+)
 
 #######################################################
 ## Dispatch function
