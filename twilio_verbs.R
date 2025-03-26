@@ -54,15 +54,29 @@ MENU_verb <- function(df) {
 
 DRINK_verb <- function(df) {
     df <- as.data.table(df)
+    
+    # Make sure count is numeric
     df[, count := as.numeric(count)]
 
+    # Load and prepare player database
     player_db <- data.table::fread("player_db.csv", colClasses = list(character = "phone"))
     player_db[, phone := ifelse(grepl("^\\+", phone), phone, paste0("+", phone))]
     
+    # Debug print
+    print("Current player_db:")
+    print(player_db)
+    print("Incoming df:")
+    print(df)
+    
     ## increment drinks count
     player_db[phone == df$from, `:=`(
-       drinks = drinks + df$count
+       drinks = drinks + df$count,
+       net = net + df$count  # Update net score too
     )]
+
+    # Debug print
+    print("Updated player_db:")
+    print(player_db)
 
     # Save the updated database
     fwrite(player_db, "player_db.csv")
@@ -296,25 +310,24 @@ parser <- function(string) {
     # Apply the regex pattern
     matches <- regmatches(string, gregexpr(pattern, string, perl = TRUE))
 
-    # Simplify extraction and assignment
+    # Initialize result as list with two elements
     if (length(matches[[1]]) == 0) {
-        # Return NA if no matches are found
-        return(c(NA, NA))
+        # Return list with NAs if no matches are found
+        return(list(NA, NA))
     } else {
-        # Initialize result with NA for the number
-        result <- list(NA, NA)
-
-        # Process the first match (assuming the first match is what we want)
+        # Process the first match
         parts <- strsplit(matches[[1]][1], "\\s+")[[1]]
-        if (length(parts) == 2) {
-            # Normalize "DRINKS" to "DRINK" if followed by a number
-            result[[1]] <- ifelse(tolower(parts[1]) %in% c("drink", "drinks"), "DRINK", toupper(parts[1]))
-            result[[2]] <- parts[2]
-        } else {
-            result[[1]] <- toupper(parts[1])
-            result[[2]] <- NA  # Explicitly set NA if no number is present
-        }
-
+        
+        # Initialize result
+        result <- list(
+            # First element is the verb (normalize DRINKS to DRINK if needed)
+            ifelse(tolower(parts[1]) %in% c("drink", "drinks"), 
+                  "DRINK", 
+                  toupper(parts[1])),
+            # Second element is the count (NA if not present)
+            if (length(parts) == 2) as.numeric(parts[2]) else NA
+        )
+        
         return(result)
     }
 }
