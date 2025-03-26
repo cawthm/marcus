@@ -18,9 +18,6 @@ STATS_verb <- function(df) {
     ##load data
     player_db <- data.table::fread("player_db.csv", colClasses = list(character = "phone"))
 
-    # Calculate net difference (drinks - health) for each player
-    player_db[, net := drinks - health]
-
     # Calculate days remaining (100-day bet)
     start_date <- as.Date(player_db$start_date[[1]])
     days_until_start <- as.integer(difftime(start_date, Sys.Date(), units = "days"))
