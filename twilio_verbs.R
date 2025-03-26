@@ -55,8 +55,11 @@ MENU_verb <- function(df) {
 DRINK_verb <- function(df) {
     df <- as.data.table(df)
     
-    # Make sure count is numeric
-    df[, count := as.numeric(count)]
+    # Make sure count is numeric and phone is character
+    df[, `:=`(
+        count = as.numeric(count),
+        from = as.character(from)
+    )]
 
     # Debug: Print working directory
     print("Current working directory:")
@@ -64,17 +67,26 @@ DRINK_verb <- function(df) {
 
     # Load and prepare player database
     print("Reading player_db.csv...")
-    player_db <- data.table::fread("player_db.csv", colClasses = list(character = "phone"))
+    player_db <- data.table::fread("player_db.csv")
     print("Initial player_db contents:")
     print(player_db)
     
+    # Convert phone numbers to character and ensure + prefix
+    player_db[, phone := as.character(phone)]
     player_db[, phone := ifelse(grepl("^\\+", phone), phone, paste0("+", phone))]
     
-    ## increment drinks count
+    print("Phone numbers after conversion:")
+    print(data.frame(
+        db_phone = player_db$phone,
+        incoming_phone = df$from,
+        match = player_db$phone == df$from
+    ))
+    
+    ## increment drinks count and update net
     print(paste("Updating drinks for phone:", df$from))
     player_db[phone == df$from, `:=`(
        drinks = drinks + df$count,
-       net = net + df$count  # Update net score too
+       net = health - (drinks + df$count)  # net = health - drinks
     )]
 
     print("Player_db after update:")
@@ -107,7 +119,12 @@ DRINK_verb <- function(df) {
 
 HEALTH_verb <- function(df) {
     df <- as.data.table(df)
-    df[, count := as.numeric(count)]
+    
+    # Make sure count is numeric and phone is character
+    df[, `:=`(
+        count = as.numeric(count),
+        from = as.character(from)
+    )]
 
     # Debug: Print working directory
     print("Current working directory:")
@@ -115,17 +132,26 @@ HEALTH_verb <- function(df) {
 
     # Load and prepare player database
     print("Reading player_db.csv...")
-    player_db <- data.table::fread("player_db.csv", colClasses = list(character = "phone"))
+    player_db <- data.table::fread("player_db.csv")
     print("Initial player_db contents:")
     print(player_db)
     
+    # Convert phone numbers to character and ensure + prefix
+    player_db[, phone := as.character(phone)]
     player_db[, phone := ifelse(grepl("^\\+", phone), phone, paste0("+", phone))]
     
-    ## increment health count
+    print("Phone numbers after conversion:")
+    print(data.frame(
+        db_phone = player_db$phone,
+        incoming_phone = df$from,
+        match = player_db$phone == df$from
+    ))
+    
+    ## increment health count and update net
     print(paste("Updating health for phone:", df$from))
     player_db[phone == df$from, `:=`(
        health = health + df$count,
-       net = net - df$count  # Update net score too (subtract health)
+       net = (health + df$count) - drinks  # net = health - drinks
     )]
 
     print("Player_db after update:")
