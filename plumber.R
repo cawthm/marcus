@@ -4,6 +4,8 @@
 library(plumber)
 library(data.table)
 
+source("twilio_verbs.R")
+
 #* Log all incoming data and parse JSON automatically
 #* @param req The request object from Plumber
 #* @post /receive-twilio-webhook
