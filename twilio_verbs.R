@@ -447,28 +447,26 @@ parser <- function(string) {
         print("Content after ADD_QUOTE:")
         print(content)
         
-        # Simple split: everything between first and last quote is the quote
-        # everything after the last quote is the author
-        if (grepl('".*"', content)) {
-            # Find positions of first and last quotes
-            quote_start <- regexpr('"', content)[1]
-            quote_end <- max(gregexpr('"', content)[[1]])
+        # Match anything between any type of quotes (", ", ")
+        quote_match <- regexpr('["""]([^"""]+)["""]\\s*(.+)', content)
+        if (quote_match > 0) {
+            # Get the entire matched text
+            matched_text <- regmatches(content, quote_match)[[1]]
+            # Extract quote - everything between first and last quote
+            first_quote <- regexpr('["""]', matched_text)[1]
+            last_quote <- max(gregexpr('["""]', matched_text)[[1]])
+            quote <- substr(matched_text, first_quote + 1, last_quote - 1)
+            # Extract author - everything after the last quote
+            author <- trimws(substr(matched_text, last_quote + 1, nchar(matched_text)))
             
-            if (quote_start > 0 && quote_end > quote_start) {
-                # Extract quote (everything between first and last quotes)
-                quote <- substr(content, quote_start + 1, quote_end - 1)
-                # Extract author (everything after the last quote, trimmed)
-                author <- trimws(substr(content, quote_end + 1, nchar(content)))
-                
-                print("Extracted quote:")
-                print(quote)
-                print("Extracted author:")
-                print(author)
-                
-                if (nchar(quote) > 0 && nchar(author) > 0) {
-                    print("Returning valid ADD_QUOTE result")
-                    return(list("ADD_QUOTE", list(quote = quote, author = author)))
-                }
+            print("Extracted quote:")
+            print(quote)
+            print("Extracted author:")
+            print(author)
+            
+            if (nchar(quote) > 0 && nchar(author) > 0) {
+                print("Returning valid ADD_QUOTE result")
+                return(list("ADD_QUOTE", list(quote = quote, author = author)))
             }
         }
         print("Quote format invalid, returning NA")
