@@ -261,31 +261,62 @@ BUY_verb <- function(df) {
 }
 
 ADD_QUOTE_verb <- function(df) {
-    # Load the current quotes database
-    quotes <- readr::read_rds("stoic_quotes.rds")
+    print("Starting ADD_QUOTE_verb function")
+    print("Received data:")
+    print(df)
     
+    # Load the current quotes database
+    print("Loading quotes database...")
+    quotes <- tryCatch({
+        readr::read_rds("stoic_quotes.rds")
+    }, error = function(e) {
+        print("Error loading quotes database:")
+        print(e$message)
+        return(NULL)
+    })
+    
+    print("Checking quote data format...")
     # Check if we have valid quote data
     if (is.na(df$count) || !is.list(df$count) || 
         is.null(df$count$quote) || is.null(df$count$author)) {
+        print("Invalid quote format detected")
         msg <- "Invalid format. Use: ADD_QUOTE \"Your quote here\" Author Name"
         send_text(df$from, msg)
         return(NULL)
     }
     
+    print("Creating new quote entry...")
     # Create new quote entry
     new_quote <- data.table(
         quote = df$count$quote,
         author = df$count$author,
-        work = NA_character_,  # Set these as NA as per requirements
+        work = NA_character_,
         Haiku = NA_character_,
-        prop = 0.5  # Default probability same as others
+        prop = 0.5
     )
     
+    print("New quote entry:")
+    print(new_quote)
+    
+    # Load player database for notifications
+    print("Loading player database...")
+    player_db <- data.table::fread("player_db.csv", 
+                                  colClasses = list(character = "phone"))
+    
     # Append to existing quotes
+    print("Appending new quote to database...")
     quotes <- rbind(quotes, new_quote)
     
     # Save back to RDS
-    readr::write_rds(quotes, "stoic_quotes.rds")
+    print("Saving updated quotes database...")
+    tryCatch({
+        readr::write_rds(quotes, "stoic_quotes.rds")
+        print("Successfully saved quotes database")
+    }, error = function(e) {
+        print("Error saving quotes database:")
+        print(e$message)
+        return(NULL)
+    })
     
     # Confirm to the user
     msg <- paste0("Added new quote:\n\n",
@@ -296,9 +327,9 @@ ADD_QUOTE_verb <- function(df) {
     # Let other players know
     msg2 <- paste0(player_db[phone == df$from,]$initials, 
                   " added a new quote to the database!")
-    player_db <- data.table::fread("player_db.csv", 
-                                  colClasses = list(character = "phone"))
     purrr::map(player_db[phone != df$from,]$phone, send_text, msg2)
+    
+    print("ADD_QUOTE_verb completed successfully")
 }
 
 ######### Utility / helper functions below
@@ -405,19 +436,34 @@ dispatch_function <- function(df, ...) {
 #######################################################
 
 parser <- function(string) {
+    print("Parser received string:")
+    print(string)
+    
     # Special handling for ADD_QUOTE which has a different format
     if (grepl("^ADD_QUOTE\\s+", string, ignore.case = TRUE)) {
+        print("Detected ADD_QUOTE command")
         # Extract everything after ADD_QUOTE
         content <- sub("^ADD_QUOTE\\s+", "", string)
-        # Look for quote and author pattern - more flexible with whitespace
-        quote_pattern <- '^"([^"]+)"\\s*(.+?)\\s*$'
+        print("Content after ADD_QUOTE:")
+        print(content)
+        
+        # Look for quote and author pattern
+        quote_pattern <- '^"([^"]+)"\\s+(.+)$'
         if (grepl(quote_pattern, content)) {
+            print("Quote pattern matched")
             quote <- gsub(quote_pattern, "\\1", content)
             author <- trimws(gsub(quote_pattern, "\\2", content))
+            print("Extracted quote:")
+            print(quote)
+            print("Extracted author:")
+            print(author)
+            
             if (nchar(quote) > 0 && nchar(author) > 0) {
+                print("Returning valid ADD_QUOTE result")
                 return(list("ADD_QUOTE", list(quote = quote, author = author)))
             }
         }
+        print("Quote format invalid, returning NA")
         return(list("ADD_QUOTE", NA))  # Return NA if quote format is invalid
     }
 
