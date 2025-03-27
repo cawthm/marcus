@@ -464,32 +464,18 @@ parser <- function(string) {
         print("\nContent after ADD_QUOTE removal:")
         print(content)
         
-        # Print hex representation of each character
-        print("\nHex dump of content:")
-        chars <- strsplit(content, "")[[1]]
-        hex_chars <- sapply(chars, function(c) sprintf("%02X", utf8ToInt(c)))
-        print(paste(hex_chars, collapse=" "))
+        # Match the entire quote pattern using Unicode-aware regex
+        quote_match <- regexpr('[\\""]([^\\""]*)[\\""]\\s*(.+)', content, perl=TRUE)
         
-        # Find all quote-like characters (including curly quotes)
-        quote_positions <- c(
-            gregexpr('"', content)[[1]],  # straight double quote
-            gregexpr('\u201C', content)[[1]],  # left double quote
-            gregexpr('\u201D', content)[[1]]   # right double quote
-        )
-        quote_positions <- quote_positions[quote_positions > 0]
-        quote_positions <- sort(quote_positions)
-        
-        print("\nQuote positions found:", paste(quote_positions, collapse=", "))
-        
-        if (length(quote_positions) >= 2) {
-            first_quote <- quote_positions[1]
-            last_quote <- quote_positions[length(quote_positions)]
-            print("\nFirst quote at position:", first_quote)
-            print("Last quote at position:", last_quote)
+        if (quote_match > 0) {
+            # Get the captured groups
+            match_length <- attr(quote_match, "match.length")
+            capture_start <- attr(quote_match, "capture.start")
+            capture_length <- attr(quote_match, "capture.length")
             
-            # Extract quote and author using byte-based substring
-            quote <- substr(content, first_quote + 1, last_quote - 1)
-            author <- trimws(substr(content, last_quote + 1, nchar(content)))
+            # Extract quote and author from capture groups
+            quote <- substr(content, capture_start[1], capture_start[1] + capture_length[1] - 1)
+            author <- trimws(substr(content, capture_start[2], capture_start[2] + capture_length[2] - 1))
             
             print("\nExtracted quote:")
             print(quote)
