@@ -454,10 +454,7 @@ dispatch_function <- function(df, ...) {
 parser <- function(string) {
     print("=== PARSER DEBUG ===")
     print("Raw input string:")
-    print(sprintf("'%s'", string))
-    print("String length:", nchar(string))
-    print("Raw bytes:")
-    print(charToRaw(string))
+    print(string)
     
     # Special handling for ADD_QUOTE which has a different format
     if (grepl("^ADD_QUOTE\\s+", string, ignore.case = TRUE)) {
@@ -465,20 +462,24 @@ parser <- function(string) {
         # Extract everything after ADD_QUOTE
         content <- sub("^ADD_QUOTE\\s+", "", string)
         print("\nContent after ADD_QUOTE removal:")
-        print(sprintf("'%s'", content))
-        print("Content length:", nchar(content))
-        print("Content bytes:")
-        print(charToRaw(content))
+        print(content)
         
-        # Super simple approach: find first and last quote of any type
+        # Print hex representation of each character
+        print("\nHex dump of content:")
         chars <- strsplit(content, "")[[1]]
-        print("\nCharacters split:")
-        print(chars)
+        hex_chars <- sapply(chars, function(c) sprintf("%02X", utf8ToInt(c)))
+        print(paste(hex_chars, collapse=" "))
         
-        quote_chars <- c('"', '"', '"')
-        print("\nLooking for quote characters:", paste(sprintf("'%s'", quote_chars), collapse=", "))
-        quote_positions <- which(chars %in% quote_chars)
-        print("Quote positions found:", paste(quote_positions, collapse=", "))
+        # Find all quote-like characters (including curly quotes)
+        quote_positions <- c(
+            gregexpr('"', content)[[1]],  # straight double quote
+            gregexpr('\u201C', content)[[1]],  # left double quote
+            gregexpr('\u201D', content)[[1]]   # right double quote
+        )
+        quote_positions <- quote_positions[quote_positions > 0]
+        quote_positions <- sort(quote_positions)
+        
+        print("\nQuote positions found:", paste(quote_positions, collapse=", "))
         
         if (length(quote_positions) >= 2) {
             first_quote <- quote_positions[1]
@@ -486,16 +487,14 @@ parser <- function(string) {
             print("\nFirst quote at position:", first_quote)
             print("Last quote at position:", last_quote)
             
-            # Extract quote and author
-            quote <- paste(chars[(first_quote + 1):(last_quote - 1)], collapse="")
-            author <- trimws(paste(chars[(last_quote + 1):length(chars)], collapse=""))
+            # Extract quote and author using byte-based substring
+            quote <- substr(content, first_quote + 1, last_quote - 1)
+            author <- trimws(substr(content, last_quote + 1, nchar(content)))
             
             print("\nExtracted quote:")
-            print(sprintf("'%s'", quote))
-            print("Quote length:", nchar(quote))
+            print(quote)
             print("\nExtracted author:")
-            print(sprintf("'%s'", author))
-            print("Author length:", nchar(author))
+            print(author)
             
             if (nchar(quote) > 0 && nchar(author) > 0) {
                 print("\nValidation passed, returning quote data")
