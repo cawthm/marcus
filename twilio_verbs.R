@@ -42,7 +42,8 @@ MENU_verb <- function(df) {
                   "DRINK n or DRINKS n","\n","(to log drink(s), where n is the number of drinks)","\n","\n",
                   "HEALTH n","\n","(to log health activity, where n is the number of units)","\n","\n",
                   "STATS","\n","(to see everyone's current standings)","\n","\n",
-                  "QUOTE","\n","(to see today's quote)")
+                  "QUOTE","\n","(to see today's quote)","\n","\n",
+                  'ADD_QUOTE "Your quote here" Author Name',"\n","(to add a new quote to the database)")
 
     send_text(df$from, msg)
 }
@@ -259,8 +260,46 @@ BUY_verb <- function(df) {
     send_text(df$from, msg_buyer)
 }
 
-
-
+ADD_QUOTE_verb <- function(df) {
+    # Load the current quotes database
+    quotes <- readr::read_rds("stoic_quotes.rds")
+    
+    # Check if we have valid quote data
+    if (is.na(df$count) || !is.list(df$count) || 
+        is.null(df$count$quote) || is.null(df$count$author)) {
+        msg <- "Invalid format. Use: ADD_QUOTE \"Your quote here\" Author Name"
+        send_text(df$from, msg)
+        return(NULL)
+    }
+    
+    # Create new quote entry
+    new_quote <- data.table(
+        quote = df$count$quote,
+        author = df$count$author,
+        work = NA_character_,  # Set these as NA as per requirements
+        Haiku = NA_character_,
+        prop = 0.5  # Default probability same as others
+    )
+    
+    # Append to existing quotes
+    quotes <- rbind(quotes, new_quote)
+    
+    # Save back to RDS
+    readr::write_rds(quotes, "stoic_quotes.rds")
+    
+    # Confirm to the user
+    msg <- paste0("Added new quote:\n\n",
+                 '"', df$count$quote, '"\n\n',
+                 " --", capitalize_title(df$count$author))
+    send_text(df$from, msg)
+    
+    # Let other players know
+    msg2 <- paste0(player_db[phone == df$from,]$initials, 
+                  " added a new quote to the database!")
+    player_db <- data.table::fread("player_db.csv", 
+                                  colClasses = list(character = "phone"))
+    purrr::map(player_db[phone != df$from,]$phone, send_text, msg2)
+}
 
 ######### Utility / helper functions below
 # 1. send_text()
@@ -348,7 +387,8 @@ function_map <- list(
     "HEALTH" = HEALTH_verb,
     "MENU" = MENU_verb,
     "STATS" = STATS_verb,
-    "QUOTE" = QUOTE_verb
+    "QUOTE" = QUOTE_verb,
+    "ADD_QUOTE" = ADD_QUOTE_verb
 )
 
 #######################################################
@@ -365,7 +405,21 @@ dispatch_function <- function(df, ...) {
 #######################################################
 
 parser <- function(string) {
-    # Updated regex pattern to only include our new verbs
+    # Special handling for ADD_QUOTE which has a different format
+    if (grepl("^ADD_QUOTE\\s+", string, ignore.case = TRUE)) {
+        # Extract the quote (text between quotes) and author
+        quote_match <- regexpr('"([^"]*)"\\s*(.+)?', string)
+        if (quote_match > 0) {
+            quote_text <- regmatches(string, quote_match)[[1]]
+            # Extract the quote and author parts
+            quote <- gsub('^"(.*)".*$', "\\1", quote_text)
+            author <- trimws(gsub('^".*"\\s*(.*)$', "\\1", quote_text))
+            return(list("ADD_QUOTE", list(quote = quote, author = author)))
+        }
+        return(list("ADD_QUOTE", NA))  # Return NA if quote format is invalid
+    }
+
+    # Regular verb pattern for other commands
     pattern <- "(?i)\\b(STATS|MENU|DRINKS?|HEALTH|QUOTE)\\b(?:\\s+(\\d+(?:\\.\\d+)?)?)?"
 
     # Apply the regex pattern

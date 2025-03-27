@@ -1,8 +1,19 @@
-# Ignore everything
+# Ignore everything by default
 *
 
-# But not these files...
+# Sensitive files that should never be committed
+twilio_tokens.rds
+stoic_quotes.rds
+player_db.csv
+received_text_db.csv
+*.log
+
+# But track these specific files
 !.gitignore
 !twilio_verbs.R
 !daily_drinking_bet_maintenance.R
+!plumber.R
+
+# Debug files (probably don't need these in git)
+debug_*.R
 
