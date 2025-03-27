@@ -447,21 +447,28 @@ parser <- function(string) {
         print("Content after ADD_QUOTE:")
         print(content)
         
-        # Try to match the quote pattern with any type of quotes
-        quote_pattern <- '^["""]([^"""]*)[""]\\s+(.+)$'
-        if (grepl(quote_pattern, content)) {
-            print("Quote pattern matched")
-            # Extract quote and author using capturing groups
-            quote <- sub(quote_pattern, "\\1", content)
-            author <- trimws(sub(quote_pattern, "\\2", content))
-            print("Extracted quote:")
-            print(quote)
-            print("Extracted author:")
-            print(author)
+        # Simple split: everything between first and last quote is the quote
+        # everything after the last quote is the author
+        if (grepl('".*"', content)) {
+            # Find positions of first and last quotes
+            quote_start <- regexpr('"', content)[1]
+            quote_end <- max(gregexpr('"', content)[[1]])
             
-            if (nchar(quote) > 0 && nchar(author) > 0) {
-                print("Returning valid ADD_QUOTE result")
-                return(list("ADD_QUOTE", list(quote = quote, author = author)))
+            if (quote_start > 0 && quote_end > quote_start) {
+                # Extract quote (everything between first and last quotes)
+                quote <- substr(content, quote_start + 1, quote_end - 1)
+                # Extract author (everything after the last quote, trimmed)
+                author <- trimws(substr(content, quote_end + 1, nchar(content)))
+                
+                print("Extracted quote:")
+                print(quote)
+                print("Extracted author:")
+                print(author)
+                
+                if (nchar(quote) > 0 && nchar(author) > 0) {
+                    print("Returning valid ADD_QUOTE result")
+                    return(list("ADD_QUOTE", list(quote = quote, author = author)))
+                }
             }
         }
         print("Quote format invalid, returning NA")
