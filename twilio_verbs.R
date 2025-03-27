@@ -453,8 +453,8 @@ parser <- function(string) {
         print("Content after quote normalization:")
         print(content)
         
-        # Look for quote and author pattern - handle both quote types
-        quote_pattern <- '^"([^"]+)"\\s+(.+)$'
+        # Look for quote and author pattern with more flexible whitespace
+        quote_pattern <- '^\\s*"([^"]+)"\\s*(.+?)\\s*$'
         if (grepl(quote_pattern, content)) {
             print("Quote pattern matched")
             quote <- gsub(quote_pattern, "\\1", content)
