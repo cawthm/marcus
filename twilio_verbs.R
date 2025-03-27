@@ -447,17 +447,18 @@ parser <- function(string) {
         print("Content after ADD_QUOTE:")
         print(content)
         
-        # Match anything between any type of quotes (", ", ")
-        quote_match <- regexpr('["""]([^"""]+)["""]\\s*(.+)', content)
-        if (quote_match > 0) {
-            # Get the entire matched text
-            matched_text <- regmatches(content, quote_match)[[1]]
-            # Extract quote - everything between first and last quote
-            first_quote <- regexpr('["""]', matched_text)[1]
-            last_quote <- max(gregexpr('["""]', matched_text)[[1]])
-            quote <- substr(matched_text, first_quote + 1, last_quote - 1)
-            # Extract author - everything after the last quote
-            author <- trimws(substr(matched_text, last_quote + 1, nchar(matched_text)))
+        # Super simple approach: find first and last quote of any type
+        # Convert string to character vector for easier manipulation
+        chars <- strsplit(content, "")[[1]]
+        quote_positions <- which(chars %in% c('"', '"', '"'))
+        
+        if (length(quote_positions) >= 2) {
+            first_quote <- quote_positions[1]
+            last_quote <- quote_positions[length(quote_positions)]
+            
+            # Extract quote and author
+            quote <- paste(chars[(first_quote + 1):(last_quote - 1)], collapse="")
+            author <- trimws(paste(chars[(last_quote + 1):length(chars)], collapse=""))
             
             print("Extracted quote:")
             print(quote)
