@@ -261,31 +261,49 @@ BUY_verb <- function(df) {
 }
 
 ADD_QUOTE_verb <- function(df) {
-    print("Starting ADD_QUOTE_verb function")
-    print("Received data:")
-    print(df)
+    print("=== ADD_QUOTE_VERB DEBUG ===")
+    print("\nInput data frame:")
+    print(str(df))
+    print("\nRaw df$count:")
+    print(df$count)
+    if (is.list(df$count)) {
+        print("\ndf$count components:")
+        print("quote:", df$count$quote)
+        print("author:", df$count$author)
+    }
     
     # Load the current quotes database
-    print("Loading quotes database...")
+    print("\nLoading quotes database...")
     quotes <- tryCatch({
-        readr::read_rds("stoic_quotes.rds")
+        db <- readr::read_rds("stoic_quotes.rds")
+        print("Current quotes database structure:")
+        print(str(db))
+        print("First row of quotes database:")
+        print(db[1,])
+        db
     }, error = function(e) {
         print("Error loading quotes database:")
         print(e$message)
         return(NULL)
     })
     
-    print("Checking quote data format...")
+    print("\nValidating quote data...")
     # Check if we have valid quote data
     if (is.na(df$count) || !is.list(df$count) || 
         is.null(df$count$quote) || is.null(df$count$author)) {
-        print("Invalid quote format detected")
+        print("Quote validation failed:")
+        print("is.na(df$count):", is.na(df$count))
+        print("!is.list(df$count):", !is.list(df$count))
+        if (is.list(df$count)) {
+            print("is.null(df$count$quote):", is.null(df$count$quote))
+            print("is.null(df$count$author):", is.null(df$count$author))
+        }
         msg <- "Invalid format. Use: ADD_QUOTE \"Your quote here\" Author Name"
         send_text(df$from, msg)
         return(NULL)
     }
     
-    print("Creating new quote entry...")
+    print("\nCreating new quote entry...")
     # Create new quote entry
     new_quote <- data.table(
         quote = df$count$quote,
@@ -295,20 +313,18 @@ ADD_QUOTE_verb <- function(df) {
         prop = 0.5
     )
     
-    print("New quote entry:")
+    print("New quote entry structure:")
+    print(str(new_quote))
+    print("New quote contents:")
     print(new_quote)
     
-    # Load player database for notifications
-    print("Loading player database...")
-    player_db <- data.table::fread("player_db.csv", 
-                                  colClasses = list(character = "phone"))
-    
     # Append to existing quotes
-    print("Appending new quote to database...")
+    print("\nAppending new quote to database...")
     quotes <- rbind(quotes, new_quote)
+    print("Updated quotes database dimensions:", dim(quotes))
     
     # Save back to RDS
-    print("Saving updated quotes database...")
+    print("\nSaving updated quotes database...")
     tryCatch({
         readr::write_rds(quotes, "stoic_quotes.rds")
         print("Successfully saved quotes database")
@@ -436,42 +452,58 @@ dispatch_function <- function(df, ...) {
 #######################################################
 
 parser <- function(string) {
-    print("Parser received string:")
-    print(string)
+    print("=== PARSER DEBUG ===")
+    print("Raw input string:")
+    print(sprintf("'%s'", string))
+    print("String length:", nchar(string))
+    print("Raw bytes:")
+    print(charToRaw(string))
     
     # Special handling for ADD_QUOTE which has a different format
     if (grepl("^ADD_QUOTE\\s+", string, ignore.case = TRUE)) {
-        print("Detected ADD_QUOTE command")
+        print("\nDetected ADD_QUOTE command")
         # Extract everything after ADD_QUOTE
         content <- sub("^ADD_QUOTE\\s+", "", string)
-        print("Content after ADD_QUOTE:")
-        print(content)
+        print("\nContent after ADD_QUOTE removal:")
+        print(sprintf("'%s'", content))
+        print("Content length:", nchar(content))
+        print("Content bytes:")
+        print(charToRaw(content))
         
         # Super simple approach: find first and last quote of any type
-        # Convert string to character vector for easier manipulation
         chars <- strsplit(content, "")[[1]]
-        quote_positions <- which(chars %in% c('"', '"', '"'))
+        print("\nCharacters split:")
+        print(chars)
+        
+        quote_chars <- c('"', '"', '"')
+        print("\nLooking for quote characters:", paste(sprintf("'%s'", quote_chars), collapse=", "))
+        quote_positions <- which(chars %in% quote_chars)
+        print("Quote positions found:", paste(quote_positions, collapse=", "))
         
         if (length(quote_positions) >= 2) {
             first_quote <- quote_positions[1]
             last_quote <- quote_positions[length(quote_positions)]
+            print("\nFirst quote at position:", first_quote)
+            print("Last quote at position:", last_quote)
             
             # Extract quote and author
             quote <- paste(chars[(first_quote + 1):(last_quote - 1)], collapse="")
             author <- trimws(paste(chars[(last_quote + 1):length(chars)], collapse=""))
             
-            print("Extracted quote:")
-            print(quote)
-            print("Extracted author:")
-            print(author)
+            print("\nExtracted quote:")
+            print(sprintf("'%s'", quote))
+            print("Quote length:", nchar(quote))
+            print("\nExtracted author:")
+            print(sprintf("'%s'", author))
+            print("Author length:", nchar(author))
             
             if (nchar(quote) > 0 && nchar(author) > 0) {
-                print("Returning valid ADD_QUOTE result")
+                print("\nValidation passed, returning quote data")
                 return(list("ADD_QUOTE", list(quote = quote, author = author)))
             }
         }
-        print("Quote format invalid, returning NA")
-        return(list("ADD_QUOTE", NA))  # Return NA if quote format is invalid
+        print("\nQuote format validation failed")
+        return(list("ADD_QUOTE", NA))
     }
 
     # Regular verb pattern for other commands
