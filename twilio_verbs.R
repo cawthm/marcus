@@ -447,7 +447,13 @@ parser <- function(string) {
         print("Content after ADD_QUOTE:")
         print(content)
         
-        # Look for quote and author pattern
+        # Replace curly quotes with straight quotes
+        content <- gsub('"', '"', content)  # Replace opening curly quote
+        content <- gsub('"', '"', content)  # Replace closing curly quote
+        print("Content after quote normalization:")
+        print(content)
+        
+        # Look for quote and author pattern - handle both quote types
         quote_pattern <- '^"([^"]+)"\\s+(.+)$'
         if (grepl(quote_pattern, content)) {
             print("Quote pattern matched")
