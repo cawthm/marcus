@@ -409,11 +409,14 @@ parser <- function(string) {
     if (grepl("^ADD_QUOTE\\s+", string, ignore.case = TRUE)) {
         # Extract everything after ADD_QUOTE
         content <- sub("^ADD_QUOTE\\s+", "", string)
-        # Look for quote and author pattern
-        if (grepl('^"([^"]+)"\\s+(.+)$', content)) {
-            quote <- gsub('^"([^"]+)"\\s+.+$', "\\1", content)
-            author <- trimws(gsub('^"[^"]+"\\s+(.+)$', "\\1", content))
-            return(list("ADD_QUOTE", list(quote = quote, author = author)))
+        # Look for quote and author pattern - more flexible with whitespace
+        quote_pattern <- '^"([^"]+)"\\s*(.+?)\\s*$'
+        if (grepl(quote_pattern, content)) {
+            quote <- gsub(quote_pattern, "\\1", content)
+            author <- trimws(gsub(quote_pattern, "\\2", content))
+            if (nchar(quote) > 0 && nchar(author) > 0) {
+                return(list("ADD_QUOTE", list(quote = quote, author = author)))
+            }
         }
         return(list("ADD_QUOTE", NA))  # Return NA if quote format is invalid
     }

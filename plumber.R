@@ -26,12 +26,18 @@ function(req) {
     setnames(log_entry2, tolower(names(log_entry2)))
     log_entry2[, time := Sys.time()]
     log_entry2 <- log_entry2[, .(time, from, body, smsmessagesid)]
-    log_entry2 <- log_entry2[, from := as.character(from)]
+    log_entry2[, from := as.character(from)]
 
     # Parse the message body
     parsed_result <- parser(log_entry2$body)
-    log_entry2[, verb := parsed_result[[1]]]  # First element is the verb
-    log_entry2[, count := parsed_result[[2]]]  # Second element is the value/count
+    log_entry2[, verb := parsed_result[[1]]]  # First element is always the verb
+    
+    # Handle the count/data differently based on verb type
+    if (log_entry2$verb == "ADD_QUOTE") {
+        log_entry2[, count := list(parsed_result[[2]])]  # For ADD_QUOTE, second element is a list with quote and author
+    } else {
+        log_entry2[, count := parsed_result[[2]]]  # For other verbs, second element is numeric or NA
+    }
 
     # Append the parsed data to the CSV file
     fwrite(log_entry2, "received_text_db.csv", append = TRUE)
