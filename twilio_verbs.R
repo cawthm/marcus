@@ -447,18 +447,13 @@ parser <- function(string) {
         print("Content after ADD_QUOTE:")
         print(content)
         
-        # Replace curly quotes with straight quotes
-        content <- gsub('"', '"', content)  # Replace opening curly quote
-        content <- gsub('"', '"', content)  # Replace closing curly quote
-        print("Content after quote normalization:")
-        print(content)
-        
-        # Look for quote and author pattern with more flexible whitespace
-        quote_pattern <- '^\\s*"([^"]+)"\\s*(.+?)\\s*$'
+        # Try to match the quote pattern with any type of quotes
+        quote_pattern <- '^["""]([^"""]*)[""]\\s+(.+)$'
         if (grepl(quote_pattern, content)) {
             print("Quote pattern matched")
-            quote <- gsub(quote_pattern, "\\1", content)
-            author <- trimws(gsub(quote_pattern, "\\2", content))
+            # Extract quote and author using capturing groups
+            quote <- sub(quote_pattern, "\\1", content)
+            author <- trimws(sub(quote_pattern, "\\2", content))
             print("Extracted quote:")
             print(quote)
             print("Extracted author:")
