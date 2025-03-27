@@ -407,13 +407,12 @@ dispatch_function <- function(df, ...) {
 parser <- function(string) {
     # Special handling for ADD_QUOTE which has a different format
     if (grepl("^ADD_QUOTE\\s+", string, ignore.case = TRUE)) {
-        # Extract the quote (text between quotes) and author, allowing for flexible whitespace
-        quote_match <- regexpr('"([^"]*)"\\s*([^\\s].+?)\\s*$', string)
-        if (quote_match > 0) {
-            quote_text <- regmatches(string, quote_match)[[1]]
-            # Extract the quote and author parts
-            quote <- gsub('^"(.*)".*$', "\\1", quote_text)
-            author <- trimws(gsub('^".*"\\s*(.*)$', "\\1", quote_text))
+        # Extract everything after ADD_QUOTE
+        content <- sub("^ADD_QUOTE\\s+", "", string)
+        # Look for quote and author pattern
+        if (grepl('^"([^"]+)"\\s+(.+)$', content)) {
+            quote <- gsub('^"([^"]+)"\\s+.+$', "\\1", content)
+            author <- trimws(gsub('^"[^"]+"\\s+(.+)$', "\\1", content))
             return(list("ADD_QUOTE", list(quote = quote, author = author)))
         }
         return(list("ADD_QUOTE", NA))  # Return NA if quote format is invalid
