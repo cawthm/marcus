@@ -465,9 +465,8 @@ parser <- function(string) {
         print("\nContent after ADD_QUOTE removal:")
         print(content)
         
-        # Extract quote and author using a more robust pattern
-        # This handles quotes with apostrophes and both straight/curly quotes
-        quote_pattern <- '^["""]([^"""]+)["""]\\s+(.+)$'
+        # Simple pattern: everything between quotes is the quote, rest is author
+        quote_pattern <- '^"([^"]+)"\\s+(.+)$'
         matches <- regexec(quote_pattern, content)
         extracted <- regmatches(content, matches)[[1]]
         
