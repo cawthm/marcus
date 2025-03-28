@@ -465,10 +465,18 @@ parser <- function(string) {
         print("\nContent after ADD_QUOTE removal:")
         print(content)
         
+        # Convert curly quotes to straight quotes for easier parsing
+        content <- gsub("[\u201C\u201D]", '"', content)
+        print("\nContent after quote conversion:")
+        print(content)
+        
         # Simple pattern: everything between quotes is the quote, rest is author
         quote_pattern <- '^"([^"]+)"\\s+(.+)$'
         matches <- regexec(quote_pattern, content)
         extracted <- regmatches(content, matches)[[1]]
+        
+        print("\nRegex matches:")
+        print(extracted)
         
         if (length(extracted) == 3) {  # Full match + 2 capture groups
             quote <- extracted[2]  # First capture group is the quote
