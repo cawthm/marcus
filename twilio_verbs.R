@@ -136,7 +136,7 @@ HEALTH_verb <- function(df) {
 
 QUOTE_verb <- function(df) {
     player_db <- data.table::fread("player_db.csv", colClasses = list(character = "phone"))
-    quotes <- fread("stoic_quotes.csv")
+    quotes <- readr::read_rds("stoic_quotes.rds")
     
     # Get today's quote
     current_quote <- quotes[player_db$sampled_row[[1]],]
@@ -145,14 +145,8 @@ QUOTE_verb <- function(df) {
 
 HAIKU_verb <- function(df) {
     player_db <- data.table::fread("player_db.csv", colClasses = list(character = "phone"))
-    quotes <- fread("stoic_quotes.csv")
-
-
-    ## send Haiku
-    #return("YOOO")
-    send_text(df$from ,quotes[player_db$sampled_row[[1]],]$Haiku)
-
-
+    quotes <- readr::read_rds("stoic_quotes.rds")
+    send_text(df$from, quotes[player_db$sampled_row[[1]],]$Haiku)
 }
 
 HOGS_verb <- function(df) {
