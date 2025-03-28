@@ -34,7 +34,13 @@ function(req) {
     
     # Handle the count/data differently based on verb type
     if (log_entry2$verb == "ADD_QUOTE") {
-        log_entry2[, count := list(parsed_result[[2]])]  # For ADD_QUOTE, second element is a list with quote and author
+        # For ADD_QUOTE, store the quote and author as a string in the count column
+        quote_data <- parsed_result[[2]]
+        if (!is.null(quote_data)) {
+            log_entry2[, count := paste0('"', quote_data$quote, '" --', quote_data$author)]
+        } else {
+            log_entry2[, count := NA_character_]
+        }
     } else {
         log_entry2[, count := parsed_result[[2]]]  # For other verbs, second element is numeric or NA
     }

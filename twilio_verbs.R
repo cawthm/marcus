@@ -279,33 +279,35 @@ ADD_QUOTE_verb <- function(df) {
     })
     
     print("\nValidating quote data...")
-    # More detailed validation with better error messages
-    if (is.null(df$count)) {
-        print("df$count is NULL")
+    # Parse the count string back into quote and author
+    if (is.null(df$count) || !is.character(df$count)) {
+        print("df$count is NULL or not a character")
         msg <- "Invalid format. Use: ADD_QUOTE \"Your quote here\" Author Name"
         send_text(df$from, msg)
         return(NULL)
     }
     
-    if (!is.list(df$count)) {
-        print("df$count is not a list")
+    # Extract quote and author from the count string
+    # Format is: "quote" --author
+    quote_pattern <- '^"([^"]+)"\\s*--\\s*(.+)$'
+    matches <- regexec(quote_pattern, df$count)
+    extracted <- regmatches(df$count, matches)[[1]]
+    
+    if (length(extracted) != 3) {
+        print("Failed to extract quote and author from count string")
         msg <- "Invalid format. Use: ADD_QUOTE \"Your quote here\" Author Name"
         send_text(df$from, msg)
         return(NULL)
     }
     
-    if (is.null(df$count$quote) || is.null(df$count$author)) {
-        print("Missing quote or author in df$count")
-        msg <- "Invalid format. Use: ADD_QUOTE \"Your quote here\" Author Name"
-        send_text(df$from, msg)
-        return(NULL)
-    }
+    quote <- extracted[2]
+    author <- trimws(extracted[3])
     
     print("\nCreating new quote entry...")
     # Create new quote entry
     new_quote <- data.table(
-        quote = df$count$quote,
-        author = df$count$author,
+        quote = quote,
+        author = author,
         work = NA_character_,
         Haiku = NA_character_,
         prop = 0.5
@@ -326,8 +328,8 @@ ADD_QUOTE_verb <- function(df) {
         
         # Confirm to the user
         msg <- paste0("Added new quote:\n\n",
-                     '"', df$count$quote, '"\n\n',
-                     " --", capitalize_title(df$count$author))
+                     '"', quote, '"\n\n',
+                     " --", capitalize_title(author))
         send_text(df$from, msg)
         
         # Load player database for notifications
