@@ -263,14 +263,7 @@ BUY_verb <- function(df) {
 ADD_QUOTE_verb <- function(df) {
     print("=== ADD_QUOTE_VERB DEBUG ===")
     print("\nInput data frame:")
-    print(str(df))
-    print("\nRaw df$count:")
-    print(df$count)
-    if (is.list(df$count)) {
-        print("\ndf$count components:")
-        print("quote:", df$count$quote)
-        print("author:", df$count$author)
-    }
+    print(df)
     
     # Load the current quotes database
     print("\nLoading quotes database...")
@@ -278,8 +271,6 @@ ADD_QUOTE_verb <- function(df) {
         db <- readr::read_rds("stoic_quotes.rds")
         print("Current quotes database structure:")
         print(str(db))
-        print("First row of quotes database:")
-        print(db[1,])
         db
     }, error = function(e) {
         print("Error loading quotes database:")
@@ -288,16 +279,23 @@ ADD_QUOTE_verb <- function(df) {
     })
     
     print("\nValidating quote data...")
-    # Check if we have valid quote data
-    if (is.na(df$count) || !is.list(df$count) || 
-        is.null(df$count$quote) || is.null(df$count$author)) {
-        print("Quote validation failed:")
-        print("is.na(df$count):", is.na(df$count))
-        print("!is.list(df$count):", !is.list(df$count))
-        if (is.list(df$count)) {
-            print("is.null(df$count$quote):", is.null(df$count$quote))
-            print("is.null(df$count$author):", is.null(df$count$author))
-        }
+    # More detailed validation with better error messages
+    if (is.null(df$count)) {
+        print("df$count is NULL")
+        msg <- "Invalid format. Use: ADD_QUOTE \"Your quote here\" Author Name"
+        send_text(df$from, msg)
+        return(NULL)
+    }
+    
+    if (!is.list(df$count)) {
+        print("df$count is not a list")
+        msg <- "Invalid format. Use: ADD_QUOTE \"Your quote here\" Author Name"
+        send_text(df$from, msg)
+        return(NULL)
+    }
+    
+    if (is.null(df$count$quote) || is.null(df$count$author)) {
+        print("Missing quote or author in df$count")
         msg <- "Invalid format. Use: ADD_QUOTE \"Your quote here\" Author Name"
         send_text(df$from, msg)
         return(NULL)
@@ -313,37 +311,40 @@ ADD_QUOTE_verb <- function(df) {
         prop = 0.5
     )
     
-    print("New quote entry structure:")
-    print(str(new_quote))
-    print("New quote contents:")
+    print("New quote entry:")
     print(new_quote)
     
     # Append to existing quotes
     print("\nAppending new quote to database...")
     quotes <- rbind(quotes, new_quote)
-    print("Updated quotes database dimensions:", dim(quotes))
     
     # Save back to RDS
     print("\nSaving updated quotes database...")
     tryCatch({
         readr::write_rds(quotes, "stoic_quotes.rds")
         print("Successfully saved quotes database")
+        
+        # Confirm to the user
+        msg <- paste0("Added new quote:\n\n",
+                     '"', df$count$quote, '"\n\n',
+                     " --", capitalize_title(df$count$author))
+        send_text(df$from, msg)
+        
+        # Load player database for notifications
+        player_db <- data.table::fread("player_db.csv", colClasses = list(character = "phone"))
+        
+        # Let other players know
+        msg2 <- paste0(player_db[phone == df$from,]$initials, 
+                      " added a new quote to the database!")
+        purrr::map(player_db[phone != df$from,]$phone, send_text, msg2)
+        
     }, error = function(e) {
         print("Error saving quotes database:")
         print(e$message)
+        msg <- "Error saving quote to database. Please try again."
+        send_text(df$from, msg)
         return(NULL)
     })
-    
-    # Confirm to the user
-    msg <- paste0("Added new quote:\n\n",
-                 '"', df$count$quote, '"\n\n',
-                 " --", capitalize_title(df$count$author))
-    send_text(df$from, msg)
-    
-    # Let other players know
-    msg2 <- paste0(player_db[phone == df$from,]$initials, 
-                  " added a new quote to the database!")
-    purrr::map(player_db[phone != df$from,]$phone, send_text, msg2)
     
     print("ADD_QUOTE_verb completed successfully")
 }
@@ -464,18 +465,15 @@ parser <- function(string) {
         print("\nContent after ADD_QUOTE removal:")
         print(content)
         
-        # Match the entire quote pattern using Unicode-aware regex
-        quote_match <- regexpr('[\\""]([^\\""]*)[\\""]\\s*(.+)', content, perl=TRUE)
+        # Extract quote and author using a more robust pattern
+        # This handles quotes with apostrophes and both straight/curly quotes
+        quote_pattern <- '^["""]([^"""]+)["""]\\s+(.+)$'
+        matches <- regexec(quote_pattern, content)
+        extracted <- regmatches(content, matches)[[1]]
         
-        if (quote_match > 0) {
-            # Get the captured groups
-            match_length <- attr(quote_match, "match.length")
-            capture_start <- attr(quote_match, "capture.start")
-            capture_length <- attr(quote_match, "capture.length")
-            
-            # Extract quote and author from capture groups
-            quote <- substr(content, capture_start[1], capture_start[1] + capture_length[1] - 1)
-            author <- trimws(substr(content, capture_start[2], capture_start[2] + capture_length[2] - 1))
+        if (length(extracted) == 3) {  # Full match + 2 capture groups
+            quote <- extracted[2]  # First capture group is the quote
+            author <- trimws(extracted[3])  # Second capture group is the author
             
             print("\nExtracted quote:")
             print(quote)
