@@ -16,12 +16,8 @@ function(req) {
         return(list(error = "No data provided"))
     }
 
-    # Log the raw incoming data as JSON
-    log_entry <- jsonlite::toJSON(data, pretty = TRUE, auto_unbox = TRUE)
-    writeLines(paste(Sys.time(), "Received data:", log_entry), con = "webhook_raw_logs.txt")
-
     # Parse JSON data into a data table
-    log_entry2 <- jsonlite::fromJSON(log_entry) %>%
+    log_entry2 <- jsonlite::fromJSON(jsonlite::toJSON(data, auto_unbox = TRUE)) %>%
         data.table::as.data.table()
     setnames(log_entry2, tolower(names(log_entry2)))
     log_entry2[, time := Sys.time()]
@@ -45,14 +41,10 @@ function(req) {
         log_entry2[, count := parsed_result[[2]]]  # For other verbs, second element is numeric or NA
     }
 
-    # Append the parsed data to the CSV file
-    fwrite(log_entry2, "received_text_db.csv", append = TRUE)
-
     # Process the incoming data
     tryCatch({
         dispatch_function(log_entry2)
     }, error = function(e) {
-        writeLines(paste(Sys.time(), "Error:", e$message), con = "webhook_raw_logs.txt")
         req$status <- 500
         return(list(error = e$message))
     })

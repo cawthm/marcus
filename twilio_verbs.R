@@ -59,50 +59,19 @@ DRINK_verb <- function(df) {
         from = as.character(from)
     )]
 
-    # Debug: Print working directory
-    print("Current working directory:")
-    print(getwd())
-
     # Load and prepare player database
-    print("Reading player_db.csv...")
     player_db <- data.table::fread("player_db.csv")
-    print("Initial player_db contents:")
-    print(player_db)
-    
-    # Convert phone numbers to character and ensure + prefix
     player_db[, phone := as.character(phone)]
     player_db[, phone := ifelse(grepl("^\\+", phone), phone, paste0("+", phone))]
     
-    print("Phone numbers after conversion:")
-    print(data.frame(
-        db_phone = player_db$phone,
-        incoming_phone = df$from,
-        match = player_db$phone == df$from
-    ))
-    
     ## increment drinks count and update net
-    print(paste("Updating drinks for phone:", df$from))
     player_db[phone == df$from, `:=`(
        drinks = drinks + df$count,
        net = health - (drinks + df$count)  # net = health - drinks
     )]
 
-    print("Player_db after update:")
-    print(player_db)
-
     # Save the updated database
-    print("Writing to player_db.csv...")
-    tryCatch({
-        fwrite(player_db, "player_db.csv")
-        print("Write completed. Checking file...")
-        # Verify the write by reading back
-        verification <- fread("player_db.csv")
-        print("File contents after write:")
-        print(verification)
-    }, error = function(e) {
-        print("Error writing to file:")
-        print(e$message)
-    })
+    fwrite(player_db, "player_db.csv")
     
     # Send confirmation
     msg <- paste0(player_db[phone == df$from,]$initials, " logged ", df$count, " drink(s).")
@@ -124,50 +93,19 @@ HEALTH_verb <- function(df) {
         from = as.character(from)
     )]
 
-    # Debug: Print working directory
-    print("Current working directory:")
-    print(getwd())
-
     # Load and prepare player database
-    print("Reading player_db.csv...")
     player_db <- data.table::fread("player_db.csv")
-    print("Initial player_db contents:")
-    print(player_db)
-    
-    # Convert phone numbers to character and ensure + prefix
     player_db[, phone := as.character(phone)]
     player_db[, phone := ifelse(grepl("^\\+", phone), phone, paste0("+", phone))]
     
-    print("Phone numbers after conversion:")
-    print(data.frame(
-        db_phone = player_db$phone,
-        incoming_phone = df$from,
-        match = player_db$phone == df$from
-    ))
-    
     ## increment health count and update net
-    print(paste("Updating health for phone:", df$from))
     player_db[phone == df$from, `:=`(
        health = health + df$count,
        net = (health + df$count) - drinks  # net = health - drinks
     )]
 
-    print("Player_db after update:")
-    print(player_db)
-
     # Save the updated database
-    print("Writing to player_db.csv...")
-    tryCatch({
-        fwrite(player_db, "player_db.csv")
-        print("Write completed. Checking file...")
-        # Verify the write by reading back
-        verification <- fread("player_db.csv")
-        print("File contents after write:")
-        print(verification)
-    }, error = function(e) {
-        print("Error writing to file:")
-        print(e$message)
-    })
+    fwrite(player_db, "player_db.csv")
     
     # Send confirmation
     msg <- paste0(player_db[phone == df$from,]$initials, " logged ", df$count, " health unit(s).")
