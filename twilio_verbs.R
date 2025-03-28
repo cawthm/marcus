@@ -73,13 +73,22 @@ DRINK_verb <- function(df) {
     # Save the updated database
     fwrite(player_db, "player_db.csv")
     
-    # Send confirmation
-    msg <- paste0(player_db[phone == df$from,]$initials, " logged ", df$count, " drink(s).")
-    send_text(df$from, msg)
+    # Prepare messages for all recipients
+    to_numbers <- list(df$from)  # Start with sender
+    messages <- list(paste0(player_db[phone == df$from,]$initials, " logged ", df$count, " drink(s)."))
     
-    # Let other players know
-    msg2 <- paste0(player_db[phone == df$from,]$initials, " just logged ", df$count, " drink(s).")
-    purrr::map(player_db[phone != df$from,]$phone, send_text, msg2)
+    # Add other players
+    other_phones <- player_db[phone != df$from,]$phone
+    if (length(other_phones) > 0) {
+        to_numbers <- c(to_numbers, as.list(other_phones))
+        messages <- c(messages, 
+                     replicate(length(other_phones),
+                             paste0(player_db[phone == df$from,]$initials, " just logged ", df$count, " drink(s)."),
+                             simplify = FALSE))
+    }
+    
+    # Send all messages in one batch
+    send_text(to_numbers, messages)
 }
 
 #DRINK_verb(log_entry2)
@@ -107,13 +116,22 @@ HEALTH_verb <- function(df) {
     # Save the updated database
     fwrite(player_db, "player_db.csv")
     
-    # Send confirmation
-    msg <- paste0(player_db[phone == df$from,]$initials, " logged ", df$count, " health unit(s).")
-    send_text(df$from, msg)
+    # Prepare messages for all recipients
+    to_numbers <- list(df$from)  # Start with sender
+    messages <- list(paste0(player_db[phone == df$from,]$initials, " logged ", df$count, " health unit(s)."))
     
-    # Let other players know
-    msg2 <- paste0(player_db[phone == df$from,]$initials, " just logged ", df$count, " health unit(s).")
-    purrr::map(player_db[phone != df$from,]$phone, send_text, msg2)
+    # Add other players
+    other_phones <- player_db[phone != df$from,]$phone
+    if (length(other_phones) > 0) {
+        to_numbers <- c(to_numbers, as.list(other_phones))
+        messages <- c(messages, 
+                     replicate(length(other_phones),
+                             paste0(player_db[phone == df$from,]$initials, " just logged ", df$count, " health unit(s)."),
+                             simplify = FALSE))
+    }
+    
+    # Send all messages in one batch
+    send_text(to_numbers, messages)
 }
 
 QUOTE_verb <- function(df) {
@@ -166,9 +184,9 @@ HOGS_verb <- function(df) {
     # Save the updated player_db
     fwrite(player_db, "player_db.csv")
 
-    # Send message to all players
+    # Send message to all players in one batch
     msg <- "WOO PIG- DRINK UP"
-    purrr::map(player_db$phone, send_text, msg)
+    send_text(player_db$phone, replicate(nrow(player_db), msg, simplify = FALSE))
 }
 
 BUY_verb <- function(df) {
@@ -188,14 +206,23 @@ BUY_verb <- function(df) {
     # Calculate amount owed
     amount_owed <- df$count * 10
     
-    # Let other players know they're owed money
-    msg_others <- paste0(player_db[phone == df$from,]$initials, " just bought ", df$count, 
-                   " drink(s). He owes you $", amount_owed, ".")
-    purrr::map(player_db[phone != df$from,]$phone, send_text, msg_others)
+    # Prepare messages for all recipients
+    to_numbers <- list(df$from)  # Start with sender
+    messages <- list(paste0("You bought ", df$count, " drink(s), logged to your drinks consumed."))
     
-    # Send confirmation to buyer (different message)
-    msg_buyer <- paste0("You bought ", df$count, " drink(s), logged to your drinks consumed.")
-    send_text(df$from, msg_buyer)
+    # Add other players
+    other_phones <- player_db[phone != df$from,]$phone
+    if (length(other_phones) > 0) {
+        to_numbers <- c(to_numbers, as.list(other_phones))
+        messages <- c(messages, 
+                     replicate(length(other_phones),
+                             paste0(player_db[phone == df$from,]$initials, " just bought ", df$count, 
+                                   " drink(s). He owes you $", amount_owed, "."),
+                             simplify = FALSE))
+    }
+    
+    # Send all messages in one batch
+    send_text(to_numbers, messages)
 }
 
 ADD_QUOTE_verb <- function(df) {
@@ -264,19 +291,26 @@ ADD_QUOTE_verb <- function(df) {
         readr::write_rds(quotes, "stoic_quotes.rds")
         print("Successfully saved quotes database")
         
-        # Confirm to the user
-        msg <- paste0("Added new quote:\n\n",
-                     '"', quote, '"\n\n',
-                     " --", capitalize_title(author))
-        send_text(df$from, msg)
+        # Prepare messages for all recipients
+        to_numbers <- list(df$from)  # Start with sender
+        messages <- list(paste0("Added new quote:\n\n",
+                              '"', quote, '"\n\n',
+                              " --", capitalize_title(author)))
         
-        # Load player database for notifications
+        # Add other players
         player_db <- data.table::fread("player_db.csv", colClasses = list(character = "phone"))
+        other_phones <- player_db[phone != df$from,]$phone
+        if (length(other_phones) > 0) {
+            to_numbers <- c(to_numbers, as.list(other_phones))
+            messages <- c(messages, 
+                         replicate(length(other_phones),
+                                 paste0(player_db[phone == df$from,]$initials, 
+                                      " added a new quote to the database!"),
+                                 simplify = FALSE))
+        }
         
-        # Let other players know
-        msg2 <- paste0(player_db[phone == df$from,]$initials, 
-                      " added a new quote to the database!")
-        purrr::map(player_db[phone != df$from,]$phone, send_text, msg2)
+        # Send all messages in one batch
+        send_text(to_numbers, messages)
         
     }, error = function(e) {
         print("Error saving quotes database:")
@@ -297,33 +331,44 @@ ADD_QUOTE_verb <- function(df) {
 # 5. dispatch_function()
 # 6. parser()
 
-send_text <- function(to_number, message_body) {
+send_text <- function(to_numbers, message_bodies) {
     # Base URL for Twilio API
     base_url <- sprintf("https://api.twilio.com/2010-04-01/Accounts/%s/Messages.json", account_sid)
-    ## get tokens
-    #auth_token <- Sys.getenv("TWILIO_API_TOKEN")
-    #account_sid <- Sys.getenv("TWILIO_API_SID")
-    # Create the request object
-    req <- request(base_url) |>
-        httr2::req_auth_basic(account_sid, auth_token) |>
-        httr2::req_body_form(
-            To = to_number,
-            From = account_phone,  # Replace this with your Twilio phone number
-            Body = message_body
-        )
-
-    # Perform the HTTP POST request
-    response <- httr2::req_perform(req)
-
-    # Check if the request was successful
-    if (response$status_code == 201) {  # 201 Created indicates success
-        cat("Message sent successfully!\n")
-    } else {
-        cat("Failed to send message:\n")
-        print(httr2::response_content(response, as = "text"))
+    
+    # If single message/number, convert to vectors
+    if (!is.list(to_numbers)) to_numbers <- list(to_numbers)
+    if (!is.list(message_bodies)) message_bodies <- list(message_bodies)
+    
+    # Create a list to store responses
+    responses <- list()
+    
+    # Send messages in parallel using future
+    for (i in seq_along(to_numbers)) {
+        req <- request(base_url) |>
+            httr2::req_auth_basic(account_sid, auth_token) |>
+            httr2::req_body_form(
+                To = to_numbers[[i]],
+                From = account_phone,
+                Body = message_bodies[[i]]
+            )
+        
+        # Perform the HTTP POST request
+        responses[[i]] <- tryCatch({
+            resp <- httr2::req_perform(req)
+            if (resp$status_code == 201) {
+                cat("Message sent successfully!\n")
+            } else {
+                cat("Failed to send message:\n")
+                print(httr2::response_content(resp, as = "text"))
+            }
+            resp
+        }, error = function(e) {
+            cat("Error sending message:", e$message, "\n")
+            NULL
+        })
     }
-
-    return(response)
+    
+    return(responses)
 }
 
 #send_text('+15015555802', message_body = "hello darkness my old friend")
