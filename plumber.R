@@ -50,4 +50,18 @@ function(req) {
     })
 
     return(list(status = "success"))
-} 
+}
+
+######## This is the server for the Arcola data
+#* Return the final value on a certain date
+#* @get /get_data
+#* @param start_date The start date in yyyy-mm-dd format
+#* @param end_date The end date in yyyy-mm-dd format
+#* @serializer unboxedJSON
+
+function(start_date = "2023-03-28", end_date = "2023-03-30") {
+    z <- read.csv("data/production_table.csv")
+    zz <- dplyr::filter(z, date >= lubridate::as_date(start_date) & date <= lubridate::as_date(end_date))
+    jsonlite::toJSON(zz)
+}
+
