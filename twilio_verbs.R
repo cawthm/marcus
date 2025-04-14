@@ -16,7 +16,10 @@ account_phone <- twilio_tokens$TWILIO_PHONE
 
 STATS_verb <- function(df) {
     ##load data
-    player_db <- data.table::fread("player_db.csv", colClasses = list(character = "phone"))
+    player_db <- data.table::fread("player_db.csv", colClasses = list(
+        character = "phone",
+        numeric = c("drinks", "health", "net")
+    ))
 
     # Calculate days remaining (100-day bet)
     start_date <- as.Date(player_db$start_date[[1]])
@@ -53,14 +56,26 @@ MENU_verb <- function(df) {
 DRINK_verb <- function(df) {
     df <- as.data.table(df)
     
+    # Validate input is not NA
+    if (is.na(df$count) || tolower(df$count) == "na") {
+        send_text(df$from, "Invalid entry. Please enter a valid number.")
+        return()
+    }
+    
     # Make sure count is numeric and phone is character
     df[, `:=`(
         count = as.numeric(count),
         from = as.character(from)
     )]
+    
+    # Round down to nearest 0.5
+    df[, count := floor(count * 2) / 2]
 
     # Load and prepare player database
-    player_db <- data.table::fread("player_db.csv")
+    player_db <- data.table::fread("player_db.csv", colClasses = list(
+        character = "phone",
+        numeric = c("drinks", "health", "net")
+    ))
     player_db[, phone := as.character(phone)]
     player_db[, phone := ifelse(grepl("^\\+", phone), phone, paste0("+", phone))]
     
@@ -96,6 +111,12 @@ DRINK_verb <- function(df) {
 HEALTH_verb <- function(df) {
     df <- as.data.table(df)
     
+    # Validate input is not NA
+    if (is.na(df$count) || tolower(df$count) == "na") {
+        send_text(df$from, "Invalid entry. Please enter a valid number.")
+        return()
+    }
+    
     # Make sure count is numeric and phone is character
     df[, `:=`(
         count = as.numeric(count),
@@ -103,7 +124,10 @@ HEALTH_verb <- function(df) {
     )]
 
     # Load and prepare player database
-    player_db <- data.table::fread("player_db.csv")
+    player_db <- data.table::fread("player_db.csv", colClasses = list(
+        character = "phone",
+        numeric = c("drinks", "health", "net")
+    ))
     player_db[, phone := as.character(phone)]
     player_db[, phone := ifelse(grepl("^\\+", phone), phone, paste0("+", phone))]
     
@@ -135,7 +159,10 @@ HEALTH_verb <- function(df) {
 }
 
 QUOTE_verb <- function(df) {
-    player_db <- data.table::fread("player_db.csv", colClasses = list(character = "phone"))
+    player_db <- data.table::fread("player_db.csv", colClasses = list(
+        character = "phone",
+        numeric = c("drinks", "health", "net")
+    ))
     quotes <- readr::read_rds("stoic_quotes.rds")
     
     # Get today's quote
@@ -144,13 +171,19 @@ QUOTE_verb <- function(df) {
 }
 
 HAIKU_verb <- function(df) {
-    player_db <- data.table::fread("player_db.csv", colClasses = list(character = "phone"))
+    player_db <- data.table::fread("player_db.csv", colClasses = list(
+        character = "phone",
+        numeric = c("drinks", "health", "net")
+    ))
     quotes <- readr::read_rds("stoic_quotes.rds")
     send_text(df$from, quotes[player_db$sampled_row[[1]],]$Haiku)
 }
 
 HOGS_verb <- function(df) {
-    player_db <- data.table::fread("player_db.csv", colClasses = list(character = "phone"))
+    player_db <- data.table::fread("player_db.csv", colClasses = list(
+        character = "phone",
+        numeric = c("drinks", "health", "net")
+    ))
     player_db[, phone := ifelse(grepl("^\\+", phone), phone, paste0("+", phone))]
 
     # First, identify who will get a foregone drink
@@ -187,7 +220,10 @@ BUY_verb <- function(df) {
     df <- as.data.table(df)
     df[, count := as.integer(count)]
     
-    player_db <- data.table::fread("player_db.csv", colClasses = list(character = "phone"))
+    player_db <- data.table::fread("player_db.csv", colClasses = list(
+        character = "phone",
+        numeric = c("drinks", "health", "net")
+    ))
     player_db[, phone := ifelse(grepl("^\\+", phone), phone, paste0("+", phone))]
     
     # Increment drinks_consumed only for sender
@@ -292,7 +328,10 @@ ADD_QUOTE_verb <- function(df) {
                               " --", capitalize_title(author)))
         
         # Add other players
-        player_db <- data.table::fread("player_db.csv", colClasses = list(character = "phone"))
+        player_db <- data.table::fread("player_db.csv", colClasses = list(
+            character = "phone",
+            numeric = c("drinks", "health", "net")
+        ))
         other_phones <- player_db[phone != df$from,]$phone
         if (length(other_phones) > 0) {
             to_numbers <- c(to_numbers, as.list(other_phones))

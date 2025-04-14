@@ -11,7 +11,10 @@ source("twilio_verbs.R")
 
 # Ensure consistent handling of quotes and newlines
 quotes <- readr::read_rds("stoic_quotes.rds")
-player_db <- fread("player_db.csv", colClasses = list(character = "phone"), encoding = "UTF-8")
+player_db <- fread("player_db.csv", colClasses = list(
+    character = "phone",
+    numeric = c("drinks", "health", "net")
+), encoding = "UTF-8")
 
 
 # Select a quote for the day
