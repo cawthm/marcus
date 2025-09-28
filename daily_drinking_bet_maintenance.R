@@ -13,7 +13,7 @@ source("twilio_verbs.R")
 quotes <- readr::read_rds("stoic_quotes.rds")
 player_db <- fread("player_db.csv", colClasses = list(
     character = "phone",
-    numeric = c("drinks", "health", "net")
+    numeric = c("drinks", "health", "net", "drink_balance", "big_goal")
 ), encoding = "UTF-8")
 
 

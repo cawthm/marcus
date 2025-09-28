@@ -18,7 +18,7 @@ STATS_verb <- function(df) {
     ##load data
     player_db <- data.table::fread("player_db.csv", colClasses = list(
         character = "phone",
-        numeric = c("drinks", "health", "net")
+        numeric = c("drinks", "health", "net", "drink_balance", "big_goal")
     ))
 
     # Calculate days remaining (100-day bet)
@@ -34,7 +34,9 @@ STATS_verb <- function(df) {
           "Days remaining: ", days_remaining, "\n", "\n",
           "Drinks","\n", format_dataframe_to_string(player_db[,c("initials", "drinks")]),"\n","\n",
           "Health","\n", format_dataframe_to_string(player_db[,c("initials", "health")]),"\n","\n",
-          "Net","\n", format_dataframe_to_string(player_db[,c("initials", "net")]))
+          "Drink Balance","\n", format_dataframe_to_string(player_db[,c("initials", "drink_balance")]),"\n","\n",
+          "Net","\n", format_dataframe_to_string(player_db[,c("initials", "net")]),"\n","\n",
+          "Big Goal","\n", format_dataframe_to_string(player_db[,c("initials", "big_goal")]))
    send_text(df$from, msg)
 }
 
@@ -44,6 +46,7 @@ MENU_verb <- function(df) {
     msg <- paste0("Valid replies:","\n","\n",
                   "DRINK n or DRINKS n","\n","(to log drink(s), where n is the number of drinks)","\n","\n",
                   "HEALTH n","\n","(to log health activity, where n is the number of units)","\n","\n",
+                  "GOALED","\n","(to log achieving a big goal, +100 health points)","\n","\n",
                   "STATS","\n","(to see everyone's current standings)","\n","\n",
                   "QUOTE","\n","(to see today's quote)","\n","\n",
                   'ADD_QUOTE "Your quote here" Author Name',"\n","(to add a new quote to the database)")
@@ -74,7 +77,7 @@ DRINK_verb <- function(df) {
     # Load and prepare player database
     player_db <- data.table::fread("player_db.csv", colClasses = list(
         character = "phone",
-        numeric = c("drinks", "health", "net")
+        numeric = c("drinks", "health", "net", "drink_balance", "big_goal")
     ))
     player_db[, phone := as.character(phone)]
     player_db[, phone := ifelse(grepl("^\\+", phone), phone, paste0("+", phone))]
@@ -126,14 +129,22 @@ HEALTH_verb <- function(df) {
     # Load and prepare player database
     player_db <- data.table::fread("player_db.csv", colClasses = list(
         character = "phone",
-        numeric = c("drinks", "health", "net")
+        numeric = c("drinks", "health", "net", "drink_balance", "big_goal")
     ))
     player_db[, phone := as.character(phone)]
     player_db[, phone := ifelse(grepl("^\\+", phone), phone, paste0("+", phone))]
     
-    ## increment health count and update net
+    ## Calculate drink balance increase from every 10 health points
+    old_health <- player_db[phone == df$from, health]
+    new_health <- old_health + df$count
+    old_drink_tokens <- floor(old_health / 10)
+    new_drink_tokens <- floor(new_health / 10)
+    drink_balance_increase <- new_drink_tokens - old_drink_tokens
+
+    ## increment health count, drink balance, and update net
     player_db[phone == df$from, `:=`(
        health = health + df$count,
+       drink_balance = drink_balance + drink_balance_increase,
        net = (health + df$count) - drinks  # net = health - drinks
     )]
 
@@ -251,6 +262,43 @@ BUY_verb <- function(df) {
                              simplify = FALSE))
     }
     
+    # Send all messages in one batch
+    send_text(to_numbers, messages)
+}
+
+GOALED_verb <- function(df) {
+    # Load and prepare player database
+    player_db <- data.table::fread("player_db.csv", colClasses = list(
+        character = "phone",
+        numeric = c("drinks", "health", "net", "drink_balance", "big_goal")
+    ))
+    player_db[, phone := as.character(phone)]
+    player_db[, phone := ifelse(grepl("^\\+", phone), phone, paste0("+", phone))]
+
+    ## Award 100 health points and increment big_goal
+    player_db[phone == df$from, `:=`(
+       health = health + 100,
+       big_goal = big_goal + 1,
+       net = (health + 100) - drinks  # net = health - drinks
+    )]
+
+    # Save the updated database
+    fwrite(player_db, "player_db.csv")
+
+    # Prepare messages for all recipients
+    to_numbers <- list(df$from)  # Start with sender
+    messages <- list(paste0(player_db[phone == df$from,]$initials, " achieved a big goal! +100 health points."))
+
+    # Add other players
+    other_phones <- player_db[phone != df$from,]$phone
+    if (length(other_phones) > 0) {
+        to_numbers <- c(to_numbers, as.list(other_phones))
+        messages <- c(messages,
+                     replicate(length(other_phones),
+                             paste0(player_db[phone == df$from,]$initials, " just achieved a big goal! +100 health points."),
+                             simplify = FALSE))
+    }
+
     # Send all messages in one batch
     send_text(to_numbers, messages)
 }
@@ -454,7 +502,8 @@ function_map <- list(
     "MENU" = MENU_verb,
     "STATS" = STATS_verb,
     "QUOTE" = QUOTE_verb,
-    "ADD_QUOTE" = ADD_QUOTE_verb
+    "ADD_QUOTE" = ADD_QUOTE_verb,
+    "GOALED" = GOALED_verb
 )
 
 #######################################################
@@ -515,7 +564,7 @@ parser <- function(string) {
     }
 
     # Regular verb pattern for other commands
-    pattern <- "(?i)\\b(STATS|MENU|DRINKS?|HEALTH|QUOTE)\\b(?:\\s+(\\d+(?:\\.\\d+)?)?)?"
+    pattern <- "(?i)\\b(STATS|MENU|DRINKS?|HEALTH|QUOTE|GOALED)\\b(?:\\s+(\\d+(?:\\.\\d+)?)?)?"
 
     # Apply the regex pattern
     matches <- regmatches(string, gregexpr(pattern, string, perl = TRUE))
