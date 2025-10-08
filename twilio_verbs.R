@@ -36,7 +36,8 @@ STATS_verb <- function(df) {
           "Health","\n", format_dataframe_to_string(player_db[,c("initials", "health")]),"\n","\n",
           "Drink Balance","\n", format_dataframe_to_string(player_db[,c("initials", "drink_balance")]),"\n","\n",
           "Net","\n", format_dataframe_to_string(player_db[,c("initials", "net")]),"\n","\n",
-          "Big Goal","\n", format_dataframe_to_string(player_db[,c("initials", "big_goal")]))
+          "Big Goal","\n", format_dataframe_to_string(player_db[,c("initials", "big_goal")]),"\n","\n",
+          "Mulligan Balance","\n", format_dataframe_to_string(player_db[,c("initials", "mulligan_balance")]))
    send_text(df$from, msg)
 }
 
