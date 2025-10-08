@@ -47,6 +47,7 @@ MENU_verb <- function(df) {
                   "DRINK n or DRINKS n","\n","(to log drink(s), where n is the number of drinks)","\n","\n",
                   "HEALTH n","\n","(to log health activity, where n is the number of units)","\n","\n",
                   "GOALED","\n","(to log achieving a big goal, +100 health points)","\n","\n",
+                  "MULLIGAN","\n","(to use a mulligan)","\n","\n",
                   "STATS","\n","(to see everyone's current standings)","\n","\n",
                   "QUOTE","\n","(to see today's quote)","\n","\n",
                   'ADD_QUOTE "Your quote here" Author Name',"\n","(to add a new quote to the database)")
@@ -82,9 +83,10 @@ DRINK_verb <- function(df) {
     player_db[, phone := as.character(phone)]
     player_db[, phone := ifelse(grepl("^\\+", phone), phone, paste0("+", phone))]
     
-    ## increment drinks count and update net
+    ## increment drinks count, decrement drink balance, and update net
     player_db[phone == df$from, `:=`(
        drinks = drinks + df$count,
+       drink_balance = drink_balance - df$count,
        net = health - (drinks + df$count)  # net = health - drinks
     )]
 
@@ -303,6 +305,49 @@ GOALED_verb <- function(df) {
     send_text(to_numbers, messages)
 }
 
+MULLIGAN_verb <- function(df) {
+    # Load and prepare player database
+    player_db <- data.table::fread("player_db.csv", colClasses = list(
+        character = "phone",
+        numeric = c("drinks", "health", "net", "drink_balance", "big_goal", "mulligan_balance", "mulligans_taken")
+    ))
+    player_db[, phone := as.character(phone)]
+    player_db[, phone := ifelse(grepl("^\\+", phone), phone, paste0("+", phone))]
+
+    # Check if player has mulligans available
+    if (player_db[phone == df$from,]$mulligan_balance <= 0) {
+        msg <- paste0("You have no more mulligans to use. Negotiate with your bet mates or concede.")
+        send_text(df$from, msg)
+        return()
+    }
+
+    ## Decrement mulligan balance and increment mulligans taken
+    player_db[phone == df$from, `:=`(
+        mulligan_balance = mulligan_balance - 1,
+        mulligans_taken = mulligans_taken + 1
+    )]
+
+    # Save the updated database
+    fwrite(player_db, "player_db.csv")
+
+    # Prepare messages for all recipients
+    to_numbers <- list(df$from)  # Start with sender
+    messages <- list(paste0(player_db[phone == df$from,]$initials, " used a mulligan."))
+
+    # Add other players
+    other_phones <- player_db[phone != df$from,]$phone
+    if (length(other_phones) > 0) {
+        to_numbers <- c(to_numbers, as.list(other_phones))
+        messages <- c(messages,
+                     replicate(length(other_phones),
+                             paste0(player_db[phone == df$from,]$initials, " just used a mulligan."),
+                             simplify = FALSE))
+    }
+
+    # Send all messages in one batch
+    send_text(to_numbers, messages)
+}
+
 ADD_QUOTE_verb <- function(df) {
     print("=== ADD_QUOTE_VERB DEBUG ===")
     print("\nInput data frame:")
@@ -503,7 +548,8 @@ function_map <- list(
     "STATS" = STATS_verb,
     "QUOTE" = QUOTE_verb,
     "ADD_QUOTE" = ADD_QUOTE_verb,
-    "GOALED" = GOALED_verb
+    "GOALED" = GOALED_verb,
+    "MULLIGAN" = MULLIGAN_verb
 )
 
 #######################################################
@@ -564,7 +610,7 @@ parser <- function(string) {
     }
 
     # Regular verb pattern for other commands
-    pattern <- "(?i)\\b(STATS|MENU|DRINKS?|HEALTH|QUOTE|GOALED)\\b(?:\\s+(\\d+(?:\\.\\d+)?)?)?"
+    pattern <- "(?i)\\b(STATS|MENU|DRINKS?|HEALTH|QUOTE|GOALED|MULLIGAN)\\b(?:\\s+(\\d+(?:\\.\\d+)?)?)?"
 
     # Apply the regex pattern
     matches <- regmatches(string, gregexpr(pattern, string, perl = TRUE))
