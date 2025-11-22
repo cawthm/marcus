@@ -137,17 +137,17 @@ HEALTH_verb <- function(df) {
     player_db[, phone := as.character(phone)]
     player_db[, phone := ifelse(grepl("^\\+", phone), phone, paste0("+", phone))]
     
-    ## Calculate drink balance increase from every 10 health points
+    ## Calculate mulligan balance increase from every 10 health points
     old_health <- player_db[phone == df$from, health]
     new_health <- old_health + df$count
-    old_drink_tokens <- floor(old_health / 10)
-    new_drink_tokens <- floor(new_health / 10)
-    drink_balance_increase <- new_drink_tokens - old_drink_tokens
+    old_mulligan_tokens <- floor(old_health / 10)
+    new_mulligan_tokens <- floor(new_health / 10)
+    mulligan_balance_increase <- new_mulligan_tokens - old_mulligan_tokens
 
-    ## increment health count, drink balance, and update net
+    ## increment health count, mulligan balance, and update net
     player_db[phone == df$from, `:=`(
        health = health + df$count,
-       drink_balance = drink_balance + drink_balance_increase,
+       mulligan_balance = mulligan_balance + mulligan_balance_increase,
        net = (health + df$count) - drinks  # net = health - drinks
     )]
 
