@@ -48,13 +48,41 @@ get_sec_change <- function() {
            change_in_secs = daylight_length_secs - dplyr::lag(daylight_length_secs))
 
  n <- df$change_in_secs[[2]]
- 
+
  paste0(ifelse(n >= 0, "+", ""), n, " secs daylight ", "\u25B3")
- 
+
+}
+
+get_cumulative_change <- function() {
+  # Find the most recent solstice (winter ~Dec 21, summer ~June 21)
+  today <- Sys.Date()
+  year <- lubridate::year(today)
+
+  winter_solstice_this_year <- as.Date(paste0(year, "-12-21"))
+  winter_solstice_last_year <- as.Date(paste0(year - 1, "-12-21"))
+  summer_solstice_this_year <- as.Date(paste0(year, "-06-21"))
+
+  # Determine which solstice is most recent and in the past
+  solstices <- c(winter_solstice_last_year, summer_solstice_this_year, winter_solstice_this_year)
+  past_solstices <- solstices[solstices <= today]
+  recent_solstice <- max(past_solstices)
+
+  # Get daylight length for solstice and today
+  df <- suncalc::getSunlightTimes(date = c(recent_solstice, today),
+                                  lat = 36.064983,
+                                  lon = -94.149184, tz = "America/Chicago") |>
+    dplyr::mutate(daylight_length_secs = as.numeric(difftime(sunset, sunrise, units = "secs")))
+
+  # Calculate cumulative change in minutes
+  solstice_daylight <- df$daylight_length_secs[[1]]
+  today_daylight <- df$daylight_length_secs[[2]]
+  cumulative_mins <- round((today_daylight - solstice_daylight) / 60, 1)
+
+  paste0(ifelse(cumulative_mins >= 0, "+", ""), cumulative_mins, " mins since solstice")
 }
 
 # Format and send the daily message
-daily_msg <- paste0(format_quote(quotes[my_sampled_row, ]), "\n\n", "Reply MENU for actions.", "\n\n", get_sec_change())
+daily_msg <- paste0(format_quote(quotes[my_sampled_row, ]), "\n\n", "Reply MENU for actions.", "\n\n", get_sec_change(), "\n", get_cumulative_change())
 
 # Send the message to all players
 purrr::map(player_db$phone, .f = send_text, daily_msg)
