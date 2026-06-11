@@ -14,6 +14,50 @@ auth_token <- twilio_tokens$TWILIO_API_TOKEN
 account_sid <- twilio_tokens$TWILIO_API_SID
 account_phone <- twilio_tokens$TWILIO_PHONE
 
+##### Personal finance (private to MC) #####
+MY_PHONE          <- "+19175191218"   # only this number logs spend / gets budget replies
+DAILY_BUDGET      <- 200              # target spend per day, in dollars
+ALERT_THRESHOLD   <- 150              # one-time alert when today's spend crosses this
+BUDGET_START_DATE <- as.Date("2026-06-11")
+SPEND_DB          <- "spend_db.csv"
+
+# Format a number as money, e.g. 7.5 -> "7.50"
+fmt_money <- function(x) formatC(as.numeric(x), format = "f", digits = 2)
+
+# Signed running-bank string, e.g. "+$340.00" / "-$25.00"
+signed_money <- function(x) {
+    if (x >= 0) paste0("+$", fmt_money(x)) else paste0("-$", fmt_money(abs(x)))
+}
+
+# Today's date in Central time, regardless of the server's timezone
+central_today <- function() as.Date(format(Sys.time(), tz = "America/Chicago", "%Y-%m-%d"))
+
+# Compute budget figures for `who` from the spend ledger.
+# Returns today's spend/remaining and the cumulative running bank.
+compute_budget <- function(who = MY_PHONE) {
+    today <- central_today()
+    days_elapsed <- max(1L, as.integer(today - BUDGET_START_DATE) + 1L)  # start date = day 1
+
+    day_spent <- 0
+    total_spent <- 0
+    if (file.exists(SPEND_DB)) {
+        sdb <- data.table::fread(SPEND_DB, colClasses = list(
+            character = c("phone", "date"), numeric = "amount"))
+        sdb <- sdb[phone == who]
+        total_spent <- sum(sdb$amount)
+        day_spent   <- sum(sdb[date == format(today, "%Y-%m-%d")]$amount)
+    }
+
+    list(
+        today         = today,
+        days_elapsed  = days_elapsed,
+        day_spent     = day_spent,
+        day_remaining = DAILY_BUDGET - day_spent,
+        total_spent   = total_spent,
+        cum_remaining = days_elapsed * DAILY_BUDGET - total_spent
+    )
+}
+
 STATS_verb <- function(df) {
     ##load data
     player_db <- data.table::fread("player_db.csv", colClasses = list(
@@ -349,6 +393,60 @@ MULLIGAN_verb <- function(df) {
     send_text(to_numbers, messages)
 }
 
+SPEND_verb <- function(df) {
+    df <- as.data.table(df)
+    from <- as.character(df$from)
+    from <- ifelse(grepl("^\\+", from), from, paste0("+", from))
+    if (from != MY_PHONE) return(invisible(NULL))   # personal: only MC logs spend
+
+    amount <- as.numeric(df$count)
+    if (is.na(amount)) return(invisible(NULL))
+
+    # Description is the raw text with the leading (optional $) amount stripped
+    description <- trimws(sub("^\\s*\\$?\\s*[0-9]+(\\.[0-9]{1,2})?\\s*", "", df$body))
+
+    # Snapshot today's spend BEFORE this expense (stateless $150 crossing test)
+    before_day_spent <- compute_budget(from)$day_spent
+
+    # Append to the ledger (writes the header on the first ever write)
+    new_row <- data.table(
+        time        = format(Sys.time(), tz = "America/Chicago", "%Y-%m-%d %H:%M:%S"),
+        date        = format(Sys.time(), tz = "America/Chicago", "%Y-%m-%d"),
+        phone       = from,
+        amount      = amount,
+        description = description
+    )
+    fwrite(new_row, SPEND_DB, append = file.exists(SPEND_DB))
+
+    # Alert once, the first time today's total crosses the threshold
+    if (before_day_spent <= ALERT_THRESHOLD &&
+        (before_day_spent + amount) > ALERT_THRESHOLD) {
+        b <- compute_budget(from)
+        msg <- paste0("⚠️ Over $", ALERT_THRESHOLD, " today\n",
+                      "Spent $", fmt_money(b$day_spent), " / $", DAILY_BUDGET,
+                      " → $", fmt_money(b$day_remaining), " left today\n",
+                      "Running bank: ", signed_money(b$cum_remaining))
+        send_text(from, msg)
+    }
+
+    invisible(NULL)
+}
+
+BUDGET_verb <- function(df) {
+    df <- as.data.table(df)
+    from <- as.character(df$from)
+    from <- ifelse(grepl("^\\+", from), from, paste0("+", from))
+    if (from != MY_PHONE) return(invisible(NULL))   # private to MC
+
+    b <- compute_budget(from)
+    msg <- paste0("\U0001F4B0 Budget — ", format(b$today, "%b %d"), "\n",
+                  "Today: spent $", fmt_money(b$day_spent), " / $", DAILY_BUDGET,
+                  " → $", fmt_money(b$day_remaining), " left\n",
+                  "Running bank: ", signed_money(b$cum_remaining),
+                  " (day ", b$days_elapsed, ")")
+    send_text(from, msg)
+}
+
 ADD_QUOTE_verb <- function(df) {
     print("=== ADD_QUOTE_VERB DEBUG ===")
     print("\nInput data frame:")
@@ -550,7 +648,9 @@ function_map <- list(
     "QUOTE" = QUOTE_verb,
     "ADD_QUOTE" = ADD_QUOTE_verb,
     "GOALED" = GOALED_verb,
-    "MULLIGAN" = MULLIGAN_verb
+    "MULLIGAN" = MULLIGAN_verb,
+    "SPEND" = SPEND_verb,
+    "BUDGET" = BUDGET_verb
 )
 
 #######################################################
@@ -570,7 +670,15 @@ parser <- function(string) {
     print("=== PARSER DEBUG ===")
     print("Raw input string:")
     print(string)
-    
+
+    # Personal-finance: a message starting with an optional "$" then a number is
+    # a spend, e.g. "$25 grocery store" or "5.25 groceries". Checked first; no
+    # collision with word-verbs since those all start with a letter.
+    if (grepl("^\\s*\\$?\\s*[0-9]+(\\.[0-9]{1,2})?(\\s|$)", string)) {
+        amount <- as.numeric(sub("^\\s*\\$?\\s*([0-9]+(?:\\.[0-9]{1,2})?).*$", "\\1", string))
+        return(list("SPEND", amount))
+    }
+
     # Special handling for ADD_QUOTE which has a different format
     if (grepl("^ADD_QUOTE\\s+", string, ignore.case = TRUE)) {
         print("\nDetected ADD_QUOTE command")
@@ -611,7 +719,7 @@ parser <- function(string) {
     }
 
     # Regular verb pattern for other commands
-    pattern <- "(?i)\\b(STATS|MENU|DRINKS?|HEALTH|QUOTE|GOALED|MULLIGAN)\\b(?:\\s+(\\d+(?:\\.\\d+)?)?)?"
+    pattern <- "(?i)\\b(STATS|MENU|DRINKS?|HEALTH|QUOTE|GOALED|MULLIGAN|BUDGET)\\b(?:\\s+(\\d+(?:\\.\\d+)?)?)?"
 
     # Apply the regex pattern
     matches <- regmatches(string, gregexpr(pattern, string, perl = TRUE))
