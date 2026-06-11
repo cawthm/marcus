@@ -442,8 +442,9 @@ BUDGET_verb <- function(df) {
     msg <- paste0("\U0001F4B0 Budget — ", format(b$today, "%b %d"), "\n",
                   "Today: spent $", fmt_money(b$day_spent), " / $", DAILY_BUDGET,
                   " → $", fmt_money(b$day_remaining), " left\n",
-                  "Running bank: ", signed_money(b$cum_remaining),
-                  " (day ", b$days_elapsed, ")")
+                  "Running bank: ", signed_money(b$cum_remaining), "\n",
+                  "Day ", b$days_elapsed, " since start (",
+                  format(BUDGET_START_DATE, "%b %d"), ")")
     send_text(from, msg)
 }
 
