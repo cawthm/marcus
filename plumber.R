@@ -49,6 +49,11 @@ function(req) {
         return(list(error = e$message))
     })
 
+    # Log the incoming text AFTER dispatch so a slow/failing write can never
+    # delay or break the SMS reply (see commit 9d9c004 for the original lag).
+    try(fwrite(log_entry2[, .(time, from, body, smsmessagesid, verb, count)],
+               "received_text_db.csv", append = TRUE), silent = TRUE)
+
     return(list(status = "success"))
 }
 
